@@ -89,7 +89,10 @@ const DashboardPage = () => {
                 <p className="text-gray-400 text-sm">AI-powered outfit suggestions</p>
               </div>
 
-              <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 rounded-2xl p-6 hover:from-blue-500/30 hover:to-cyan-500/30 transition-all duration-300 cursor-pointer group">
+              <div 
+                onClick={() => router.push('/calendar')}
+                className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 rounded-2xl p-6 hover:from-blue-500/30 hover:to-cyan-500/30 transition-all duration-300 cursor-pointer group"
+              >
                 <Calendar className="w-12 h-12 text-blue-400 mb-4 group-hover:scale-110 transition-transform duration-300" />
                 <h3 className="text-xl font-semibold mb-2">Style Calendar</h3>
                 <p className="text-gray-400 text-sm">Plan your weekly outfits</p>
