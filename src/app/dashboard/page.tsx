@@ -1,38 +1,31 @@
+// app/dashboard/page.tsx
 'use client';
 
 import { useAuth } from '../../contexts/AuthContent';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import WebAppHeader from '@/components/WebAppHeader';
 import { useEffect, useState } from 'react';
-import { 
-  Calendar, 
-  Camera, 
-  Sparkles, 
-  TrendingUp, 
-  Users, 
-  Zap, 
+// Removed Image import as it's no longer used directly in this file's render
+import {
+  Calendar,
+  Camera,
+  Sparkles,
+  TrendingUp,
   User,
+  Zap,
   Settings,
-  LogOut,
-  Bell,
-  Search,
-  Plus,
-  Heart,
-  Share2,
-  Filter,
-  Grid3X3,
-  List,
-  Edit,
-  Trash2,
-  MoreVertical
+  LogOut
 } from 'lucide-react';
 
 const DashboardPage = () => {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
-  const pathname = usePathname();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+
+  // defaultProfilePic is only needed if you render it directly here,
+  // but WebAppHeader already handles fallback.
+  // const defaultProfilePic = '/default-profile-pic.png'; 
 
   useEffect(() => {
     if (!loading && !user) {
@@ -97,7 +90,7 @@ const DashboardPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <QuickActionCard icon={Camera} color="purple" title="Upload Items" description="Add new clothes to your wardrobe" href="/wardrobe"/>
             <QuickActionCard icon={Zap} color="pink" title="Generate Outfit" description="AI-powered outfit suggestions" href="/outfits"/>
-            {/* NEW: This card now navigates to /wardrobe */}
+            {/* This card now navigates to /wardrobe */}
             <QuickActionCard icon={Calendar} color="blue" title="Style Calendar" description="Plan your weekly outfits" href="/wardrobe"/>
             <QuickActionCard icon={TrendingUp} color="cyan" title="Trends" description="Discover latest fashion trends" href="/trends"/>
           </div>
@@ -108,7 +101,11 @@ const DashboardPage = () => {
             <div className="lg:col-span-2">
               <div className="bg-gray-800/50 border border-gray-700 rounded-3xl p-8">
                 <h2 className="text-2xl font-bold">Today's Outfit</h2>
-                {/* ... rest of the Today's Outfit content ... */}
+                <div className="mt-4 text-gray-400">
+                  {/* Placeholder for today's outfit */}
+                  <p>Your AI-generated outfit for today will appear here!</p>
+                  <p className="mt-2 text-sm">You haven't generated an outfit yet or set your preferences. Go to "Generate Outfit" to get started.</p>
+                </div>
               </div>
             </div>
 
@@ -116,11 +113,31 @@ const DashboardPage = () => {
             <div className="space-y-6">
               <div className="bg-gray-800/50 border border-gray-700 rounded-3xl p-6">
                  <h3 className="text-xl font-bold mb-4">Your Stats</h3>
-                 {/* ... rest of the stats content ... */}
+                 <ul className="space-y-3 text-gray-300">
+                    <li className="flex items-center justify-between">
+                        <span className="flex items-center space-x-2"><Camera className="w-5 h-5 text-purple-300"/> <span>Wardrobe Items:</span></span>
+                        <span className="font-semibold text-lg text-purple-200">0</span> {/* These would dynamically load from Firebase */}
+                    </li>
+                    <li className="flex items-center justify-between">
+                        <span className="flex items-center space-x-2"><Zap className="w-5 h-5 text-pink-300"/> <span>Outfits Generated:</span></span>
+                        <span className="font-semibold text-lg text-pink-200">0</span> {/* These would dynamically load from Firebase */}
+                    </li>
+                    <li className="flex items-center justify-between">
+                        <span className="flex items-center space-x-2"><Sparkles className="w-5 h-5 text-cyan-300"/> <span>Style Points:</span></span>
+                        <span className="font-semibold text-lg text-cyan-200">0</span> {/* These would dynamically load from Firebase */}
+                    </li>
+                 </ul>
               </div>
               <div className="bg-gray-800/50 border border-gray-700 rounded-3xl p-6">
                  <h3 className="text-xl font-bold mb-4">Recent Activity</h3>
-                 {/* ... rest of the activity content ... */}
+                 <ul className="space-y-3 text-gray-400 text-sm">
+                    <li><span className="font-semibold text-gray-300">Today:</span> Signed up for FitCheck!</li>
+                    <li><span className="font-semibold text-gray-300">Yesterday:</span> No activity.</li>
+                    {/* More dynamic activity feed would go here */}
+                 </ul>
+                 <div className="mt-4 text-right">
+                    <Link href="#" className="text-purple-400 hover:text-purple-300 text-sm">View All Activity</Link>
+                 </div>
               </div>
             </div>
           </div>

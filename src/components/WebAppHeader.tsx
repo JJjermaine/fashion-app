@@ -1,163 +1,101 @@
-'use client';
-
+// components/WebAppHeader.tsx
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { 
-    Sparkles, 
-    Search, 
-    Bell, 
-    User, 
-    LogOut,
-    Camera,
-    Zap,
-    Home,
-    LayoutDashboard
-} from 'lucide-react';
+import { User as UserIcon, Settings, LogOut, Sparkles, ChevronDown, ChevronUp } from 'lucide-react'; // Added ChevronDown/Up
+import { User } from 'firebase/auth';
+import Image from 'next/image';
 
-// Define the type for the user object for clarity
-interface User {
-    displayName?: string | null;
-    email?: string | null;
-}
-
-// Define the props the component will accept
 interface WebAppHeaderProps {
-    user: User | null;
-    showProfileMenu: boolean;
-    setShowProfileMenu: (show: boolean) => void;
-    handleLogout: () => void;
+  user: User | null;
+  showProfileMenu: boolean;
+  setShowProfileMenu: (show: boolean) => void;
+  handleLogout: () => void;
 }
 
 const WebAppHeader: React.FC<WebAppHeaderProps> = ({ user, showProfileMenu, setShowProfileMenu, handleLogout }) => {
-    const pathname = usePathname();
+  const defaultProfilePic = '/default-profile-pic.png'; // Make sure this file exists in your /public folder
 
-    if (!user) {
-        return null;
-    }
+  return (
+    <header className="bg-gray-900 border-b border-gray-700 py-4 px-6 flex items-center justify-between z-50 relative">
+      <Link href="/dashboard" className="inline-flex items-center space-x-2">
+        <div className="relative">
+          <Sparkles className="w-6 h-6 text-purple-400" />
+          <div className="absolute inset-0 w-6 h-6 bg-purple-400/20 rounded-full blur-md"></div>
+        </div>
+        <span className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+          FitCheck
+        </span>
+      </Link>
 
-    const closeMenu = () => {
-        setShowProfileMenu(false);
-    }
+      <nav className="flex items-center space-x-4">
+        {/* Main Navigation Links */}
+        <Link href="/dashboard" className="text-gray-300 hover:text-purple-400 transition-colors duration-200 hidden sm:block">
+          Dashboard
+        </Link>
+        <Link href="/wardrobe" className="text-gray-300 hover:text-purple-400 transition-colors duration-200 hidden sm:block">
+          Wardrobe
+        </Link>
+        <Link href="/outfits" className="text-gray-300 hover:text-purple-400 transition-colors duration-200 hidden sm:block">
+          Outfits
+        </Link>
 
-    return (
-        <>
-            {/* Header */}
-            <header className="bg-gradient-to-r from-purple-900/50 to-pink-900/50 border-b border-gray-800">
-                <div className="container mx-auto px-6 py-6">
-                    <div className="flex items-center justify-between">
-                        {/* --- Restored Simple Logo Link --- */}
-                        <div className="flex items-center space-x-4">
-                            <div className="flex items-center space-x-2">
-                                <Sparkles className="w-8 h-8 text-purple-400" />
-                                <Link href="/dashboard">
-                                    <span className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                                        FitCheck
-                                    </span>
-                                </Link>
-                            </div>
-                            <div className="hidden md:block">
-                                <h1 className="text-2xl font-bold">
-                                    Welcome back, {user.displayName?.split(' ')[0] || 'User'}! 👋
-                                </h1>
-                            </div>
-                        </div>
-                        
-                        {/* Header Actions */}
-                        <div className="flex items-center space-x-4">
-                            <div className="relative hidden md:block">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                <input
-                                    type="text"
-                                    placeholder="Search..."
-                                    className="bg-gray-800 border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition-colors duration-200 w-64"
-                                />
-                            </div>
-                            
-                            <button className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors duration-200">
-                                <Bell className="w-5 h-5 text-gray-400" />
-                            </button>
-                            
-                            {/* --- Updated Profile Menu --- */}
-                            <div className="relative">
-                                <button
-                                    onClick={() => setShowProfileMenu(!showProfileMenu)}
-                                    className="flex items-center space-x-2 p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors duration-200"
-                                >
-                                    <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-sm font-semibold">
-                                        {user.displayName?.charAt(0) || user.email?.charAt(0) || 'U'}
-                                    </div>
-                                </button>
-                                
-                                {showProfileMenu && (
-                                    <div className="absolute right-0 mt-2 w-60 bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl z-50 overflow-hidden">
-                                        {/* User Info Header */}
-                                        <div className="p-4 border-b border-gray-700">
-                                            <p className="font-semibold text-white truncate">{user.displayName || 'Anonymous User'}</p>
-                                            <p className="text-sm text-gray-400 truncate">{user.email}</p>
-                                        </div>
-                                        {/* Navigation Links */}
-                                        <div className="p-2 space-y-1">
-                                            <Link href="/" onClick={closeMenu} className="w-full flex items-center space-x-3 text-gray-300 hover:text-white hover:bg-gray-700 rounded-xl px-3 py-2 transition-colors duration-200">
-                                                <Home className="w-4 h-4" />
-                                                <span>Home</span>
-                                            </Link>
-                                            <Link href="/dashboard" onClick={closeMenu} className="w-full flex items-center space-x-3 text-gray-300 hover:text-white hover:bg-gray-700 rounded-xl px-3 py-2 transition-colors duration-200">
-                                                <LayoutDashboard className="w-4 h-4" />
-                                                <span>Dashboard</span>
-                                            </Link>
-                                            <Link href="/profile" onClick={closeMenu} className="w-full flex items-center space-x-3 text-gray-300 hover:text-white hover:bg-gray-700 rounded-xl px-3 py-2 transition-colors duration-200">
-                                                <User className="w-4 h-4" />
-                                                <span>Profile</span>
-                                            </Link>
-                                        </div>
-                                        {/* Logout Button */}
-                                        <div className="p-2 border-t border-gray-700">
-                                            <button onClick={handleLogout} className="w-full flex items-center space-x-3 text-gray-300 hover:text-red-400 hover:bg-gray-700 rounded-xl px-3 py-2 transition-colors duration-200">
-                                                <LogOut className="w-4 h-4" />
-                                                <span>Logout</span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </header>
+        {user && (
+          <div className="relative ml-4"> {/* Adjusted margin for spacing */}
+            <button
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              className="flex items-center space-x-2 text-white bg-gray-700/50 hover:bg-gray-700 rounded-full p-1 pr-3 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              aria-label="Toggle profile menu"
+            >
+              <Image
+                src={user.photoURL || defaultProfilePic}
+                alt="Profile"
+                width={32}
+                height={32}
+                className="w-8 h-8 rounded-full object-cover border border-purple-500"
+                priority // Prioritize loading for header image
+              />
+              <span className="font-medium text-sm hidden md:block"> {/* Show name on medium/large screens */}
+                {user.displayName || user.email?.split('@')[0]}
+              </span>
+              {showProfileMenu ? (
+                <ChevronUp className="w-4 h-4 text-gray-400" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-gray-400" />
+              )}
+            </button>
 
-            {/* Navigation Tabs */}
-            <nav className="border-b border-gray-800">
-                <div className="container mx-auto px-6">
-                    <div className="flex space-x-8 overflow-x-auto">
-                        {[
-                            { id: 'dashboard', label: 'Dashboard', icon: Sparkles, href: '/dashboard' },
-                            { id: 'wardrobe', label: 'Wardrobe', icon: Camera, href: '/wardrobe' },
-                            { id: 'outfits', label: 'Outfits', icon: Zap, href: '/outfits' },
-                            { id: 'profile', label: 'Profile', icon: User, href: '/profile' },
-                        ].map((tab) => {
-                            const Icon = tab.icon;
-                            const isActive = pathname.startsWith(tab.href);
-                            return (
-                                <Link
-                                    key={tab.id}
-                                    href={tab.href}
-                                    className={`flex items-center space-x-2 py-4 border-b-2 transition-colors duration-200 whitespace-nowrap ${
-                                        isActive
-                                            ? 'border-purple-400 text-purple-400'
-                                            : 'border-transparent text-gray-400 hover:text-white'
-                                    }`}
-                                >
-                                    <Icon className="w-5 h-5" />
-                                    <span className="font-medium">{tab.label}</span>
-                                </Link>
-                            );
-                        })}
-                    </div>
-                </div>
-            </nav>
-        </>
-    );
+            {showProfileMenu && (
+              <div className="absolute right-0 top-full mt-2 w-48 bg-gray-800 border border-gray-700 rounded-xl shadow-lg py-2 z-20">
+                <Link
+                  href="/dashboard"
+                  className="flex items-center space-x-3 px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-colors duration-200"
+                  onClick={() => setShowProfileMenu(false)}
+                >
+                  <UserIcon className="w-5 h-5" />
+                  <span>Dashboard</span>
+                </Link>
+                <Link
+                  href="/dashboard/settings"
+                  className="flex items-center space-x-3 px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-colors duration-200"
+                  onClick={() => setShowProfileMenu(false)}
+                >
+                  <Settings className="w-5 h-5" />
+                  <span>Settings</span>
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center space-x-3 w-full text-left px-4 py-2 text-red-400 hover:bg-gray-700 hover:text-red-300 rounded-lg transition-colors duration-200"
+                >
+                  <LogOut className="w-5 h-5" />
+                  <span>Logout</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </nav>
+    </header>
+  );
 };
 
 export default WebAppHeader;
