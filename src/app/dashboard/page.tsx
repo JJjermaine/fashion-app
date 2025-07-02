@@ -1,6 +1,6 @@
 'use client';
 
-import { useAuth } from '../../contexts/AuthContent';
+import { useAuth } from '../api/sign-firebase-params/AuthContent';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import WebAppHeader from '@/components/WebAppHeader';

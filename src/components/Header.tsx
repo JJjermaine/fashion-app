@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Menu, X, Sparkles, User, LogOut, Home, LayoutDashboard } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContent';
+import { useAuth } from '../app/api/sign-firebase-params/AuthContent';
 import Link from 'next/link';
 
 const Header = () => {

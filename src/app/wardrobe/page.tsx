@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { useAuth } from '../../contexts/AuthContent';
+import { useAuth } from '../api/sign-firebase-params/AuthContent';
 import { useRouter } from 'next/navigation';
 import WebAppHeader from '@/components/WebAppHeader';
 
@@ -15,6 +15,7 @@ const WardrobePage = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const outfitRefs = useRef(new Map());
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [itemName, setItemName] = useState('');
 
     const fetchOutfits = async () => {
         if (user) {
@@ -38,10 +39,39 @@ const WardrobePage = () => {
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (file) {
+        if (file && itemName) {
             try {
-                await uploadImage(file);
+                // Get signature from server
+                const response = await fetch('/api/sign-cloudinary-params', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({}),
+                });
+                const { signature, timestamp } = await response.json();
+
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('api_key', process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY!);
+                formData.append('timestamp', timestamp);
+                formData.append('signature', signature);
+
+                const uploadResponse = await fetch(`https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`, {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                const data = await uploadResponse.json();
+                const cloudinaryUrl = data.secure_url;
+
+                if (!cloudinaryUrl) {
+                    throw new Error('Image upload failed, no secure_url found in response.');
+                }
+                
+                await uploadImage(cloudinaryUrl, itemName);
                 fetchOutfits(); 
+                setItemName('');
             } catch (error) {
                 console.error("Error uploading image: ", error);
             }
@@ -129,13 +159,20 @@ const WardrobePage = () => {
                                             ref={(el) => { if (el) outfitRefs.current.set(outfit.id, el); }}
                                             className="rounded-2xl overflow-hidden shadow-lg bg-gray-800/50 border border-gray-700 shrink-0"
                                         >
-                                            <img src={outfit.imageUrl} alt={`Outfit ${outfit.id}`} className="w-full h-48 object-cover" />
-                                            <div className="p-2"><p className="text-xs text-center text-gray-400">Uploaded: {outfit.uploadDate}</p></div>
+                                            <img src={outfit.imageUrl} alt={`Outfit ${outfit.id}`} className="w-full h-48 object-.cover" />
+                                            <div className="p-2"><p className="text-xs text-center text-gray-400">{outfit.itemName}</p></div>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                             <div className="mt-6 shrink-0">
+                                <input 
+                                    type="text" 
+                                    value={itemName} 
+                                    onChange={(e) => setItemName(e.target.value)} 
+                                    placeholder="Item Name" 
+                                    className="w-full bg-gray-800 text-white py-2 px-3 rounded-lg mb-4"
+                                />
                                 <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
                                 <button onClick={() => fileInputRef.current?.click()} className="w-full bg-purple-600 text-white font-semibold py-3 px-4 rounded-xl hover:bg-purple-700 transition-all duration-300 transform hover:scale-105">
                                     Upload New Item

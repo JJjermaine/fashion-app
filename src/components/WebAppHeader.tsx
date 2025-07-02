@@ -94,7 +94,7 @@ const WebAppHeader: React.FC<WebAppHeaderProps> = ({ user, showProfileMenu, setS
                                         {/* User Info Header */}
                                         <div className="p-4 border-b border-gray-700">
                                             <p className="font-semibold text-white truncate">{user.displayName || 'Anonymous User'}</p>
-                                            <p className="text-sm text-gray-400 truncate">{user.email}</p>
+                                            <p className="text-sm text-gray-400 truncate">{user.email || 'No email provided'}</p>
                                         </div>
                                         {/* Navigation Links */}
                                         <div className="p-2 space-y-1">

@@ -21,7 +21,7 @@ interface AuthContextType {
   signup: (email: string, password: string, displayName: string) => Promise<void>;
   logout: () => Promise<void>;
   loginWithGoogle: () => Promise<void>;
-  uploadImage: (file: File) => Promise<void>;
+  uploadImage: (cloudinaryUrl: string, itemName: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -85,27 +85,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  const uploadImage = async (file: File) => {
+  const uploadImage = async (cloudinaryUrl: string, itemName: string) => {
     if (!user) {
       throw new Error('You must be logged in to upload images.');
     }
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', 'your_upload_preset'); // Replace with your upload preset
-
-    const response = await fetch(`https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`, {
-        method: 'POST',
-        body: formData,
-    });
-
-    const data = await response.json();
-    const cloudinaryUrl = data.secure_url;
-
+  
     await addDoc(collection(db, 'fits'), {
-        uid: user.uid,
-        cloudinaryUrl: cloudinaryUrl,
-        uploadDate: new Date().toISOString().split('T')[0],
+      uid: user.uid,
+      cloudinaryUrl: cloudinaryUrl,
+      itemName: itemName,
+      uploadDate: new Date().toISOString().split('T')[0],
     });
   };
 

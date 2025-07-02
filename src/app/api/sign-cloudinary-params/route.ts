@@ -8,12 +8,12 @@ cloudinary.config({
 });
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  const { paramsToSign } = body;
-
   try {
-    const signature = cloudinary.utils.api_sign_request(paramsToSign, process.env.CLOUDINARY_API_SECRET as string);
-    return NextResponse.json({ signature });
+    const timestamp = Math.round((new Date).getTime()/1000);
+    const signature = cloudinary.utils.api_sign_request({
+      timestamp: timestamp,
+    }, process.env.CLOUDINARY_API_SECRET as string);
+    return NextResponse.json({ signature, timestamp });
   } catch (error) {
     console.error('Error signing Cloudinary params:', error);
     return NextResponse.json({ error: 'Failed to sign Cloudinary params' }, { status: 500 });

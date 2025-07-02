@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useAuth } from '../../contexts/AuthContent';
+import { useAuth } from '../api/sign-firebase-params/AuthContent';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Eye, EyeOff, Mail, Lock, Sparkles, ArrowLeft } from 'lucide-react';
 
-const LoginPage = () => {
+export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -179,6 +179,4 @@ const LoginPage = () => {
       </div>
     </div>
   );
-};
-
-export default LoginPage;
+}
