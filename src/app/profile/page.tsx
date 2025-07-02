@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContent';
 import { useRouter, usePathname } from 'next/navigation';
+import WebAppHeader from '@/components/WebAppHeader';
 import Link from 'next/link';
 import { 
     // Icons for standard nav/header
@@ -64,79 +65,15 @@ export default function ProfilePage() {
     if (!user) return null;
 
     // --- RENDER ---
-    return (
-        <div className="min-h-screen bg-black text-white">
-            {/* Standard Header */}
-            <header className="bg-gradient-to-r from-purple-900/50 to-pink-900/50 border-b border-gray-800">
-                <div className="container mx-auto px-6 py-6">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                            <Link href="/dashboard" className="flex items-center space-x-2">
-                                <Sparkles className="w-8 h-8 text-purple-400" />
-                                <span className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                                    FitCheck
-                                </span>
-                            </Link>
-                        </div>
-                        <div className="flex items-center space-x-4">
-                            <button className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors duration-200">
-                                <Bell className="w-5 h-5 text-gray-400" />
-                            </button>
-                            <div className="relative">
-                                <button
-                                    onClick={() => setShowProfileMenu(!showProfileMenu)}
-                                    className="flex items-center space-x-2 p-2 bg-gray-800 hover:bg-gray-700 rounded-lg"
-                                >
-                                    <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-sm font-semibold">
-                                        {user.displayName?.charAt(0) || user.email?.charAt(0) || 'U'}
-                                    </div>
-                                </button>
-                                {showProfileMenu && (
-                                    <div className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl z-50">
-                                        <div className="p-2">
-                                            <Link href="/profile" className="w-full flex items-center space-x-2 text-gray-300 hover:text-white bg-gray-700 rounded-xl px-3 py-2">
-                                                <User className="w-4 h-4" />
-                                                <span>Profile</span>
-                                            </Link>
-                                            <button onClick={handleLogout} className="w-full flex items-center space-x-2 text-gray-300 hover:text-red-400 hover:bg-gray-700 rounded-xl px-3 py-2 mt-1">
-                                                <LogOut className="w-4 h-4" />
-                                                <span>Logout</span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            {/* Standard Navigation */}
-            <nav className="border-b border-gray-800">
-                <div className="container mx-auto px-6">
-                    <div className="flex space-x-8 overflow-x-auto">
-                        {[
-                            { id: 'dashboard', label: 'Dashboard', icon: Sparkles, href: '/dashboard' },
-                            { id: 'wardrobe', label: 'Wardrobe', icon: Camera, href: '/wardrobe' },
-                            { id: 'outfits', label: 'Outfits', icon: Zap, href: '/outfits' },
-                            { id: 'profile', label: 'Profile', icon: User, href: '/profile' },
-                        ].map((tab) => {
-                            const Icon = tab.icon;
-                            const isActive = pathname.startsWith(tab.href);
-                            return (
-                                <Link
-                                    key={tab.id}
-                                    href={tab.href}
-                                    className={`flex items-center space-x-2 py-4 border-b-2 transition-colors duration-200 ${isActive ? 'border-purple-400 text-purple-400' : 'border-transparent text-gray-400 hover:text-white'}`}
-                                >
-                                    <Icon className="w-5 h-5" />
-                                    <span className="font-medium">{tab.label}</span>
-                                </Link>
-                            );
-                        })}
-                    </div>
-                </div>
-            </nav>
+  return (
+      <div className="min-h-screen bg-black text-white">
+          
+          <WebAppHeader
+            user={user}
+            showProfileMenu={showProfileMenu}
+            setShowProfileMenu={setShowProfileMenu}
+            handleLogout={handleLogout}
+          />
 
             {/* Main Profile Content */}
             <main className="container mx-auto px-6 py-8">
