@@ -1,16 +1,28 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { useAuth } from '../api/sign-firebase-params/AuthContent';
+import { useAuth } from '../../contexts/AuthContent';
 import { useRouter } from 'next/navigation';
 import WebAppHeader from '@/components/WebAppHeader';
+
+// Define the Outfit type
+interface Outfit {
+    id: string;
+    uid: string;
+    email: string;
+    itemName: string;
+    cloudinaryUrl: string;
+    imageUrl: string;
+    uploadDate?: string;
+    createdAt?: any;
+}
 
 const WardrobePage = () => {
     const { user, loading, logout, uploadImage } = useAuth();
     const router = useRouter();
-    const [outfits, setOutfits] = useState([]);
+    const [outfits, setOutfits] = useState<Outfit[]>([]);
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [currentDate, setCurrentDate] = useState(new Date());
     const outfitRefs = useRef(new Map());
@@ -23,7 +35,7 @@ const WardrobePage = () => {
             const querySnapshot = await getDocs(q);
             const userOutfits = querySnapshot.docs.map(doc => ({
                 id: doc.id,
-                ...doc.data()
+                ...(doc.data() as Omit<Outfit, 'id' | 'imageUrl'>),
             }));
             setOutfits(userOutfits.map(o => ({ ...o, imageUrl: o.cloudinaryUrl })));
         }
@@ -39,7 +51,7 @@ const WardrobePage = () => {
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (file && itemName) {
+        if (file && itemName && user) {
             try {
                 // Get signature from server
                 const response = await fetch('/api/sign-cloudinary-params', {
@@ -63,13 +75,20 @@ const WardrobePage = () => {
                 });
 
                 const data = await uploadResponse.json();
-                const cloudinaryUrl = data.secure_url;
+                console.log('Cloudinary Response:', data);
 
-                if (!cloudinaryUrl) {
+                if (!data.secure_url) {
                     throw new Error('Image upload failed, no secure_url found in response.');
                 }
-                
-                await uploadImage(cloudinaryUrl, itemName);
+                // Save to Firestore with user info
+                await addDoc(collection(db, "fits"), {
+                    uid: user.uid,
+                    email: user.email,
+                    itemName,
+                    cloudinaryUrl: data.secure_url,
+                    uploadDate: new Date().toISOString().slice(0, 10), // YYYY-MM-DD
+                    createdAt: new Date(),
+                });
                 fetchOutfits(); 
                 setItemName('');
             } catch (error) {

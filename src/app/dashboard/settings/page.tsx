@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../api/sign-firebase-params/AuthContent';
+import { useAuth } from '../../../contexts/AuthContent';
 import { useRouter } from 'next/navigation';
 import WebAppHeader from '@/components/WebAppHeader';
 import {

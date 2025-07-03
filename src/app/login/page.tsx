@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useAuth } from '../api/sign-firebase-params/AuthContent';
+import { useAuth } from '../../contexts/AuthContent';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Eye, EyeOff, Mail, Lock, Sparkles, ArrowLeft } from 'lucide-react';
