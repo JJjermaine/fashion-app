@@ -274,10 +274,12 @@ export default function OutfitsPage() {
         <div className="h-screen w-screen bg-gray-950 text-gray-200 flex flex-col">
             <WebAppHeader user={user} showProfileMenu={showProfileMenu} setShowProfileMenu={setShowProfileMenu} handleLogout={handleLogout} />
             <div className="flex flex-1 overflow-hidden">
-                <aside className={`bg-gray-900 flex-shrink-0 flex flex-col transition-all duration-300 ${isMenuOpen ? 'w-64' : 'w-0'}`}>
+                <aside className={`fixed top-15 left-0 z-50 w-80 h-[calc(100vh-3.5rem)] bg-gray-900 border-r border-gray-700 transform transition-transform duration-300 ease-in-out ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                     <div className="p-2 flex justify-between items-center h-14 border-b border-gray-700/50">
                         <button onClick={handleNewChat} className="p-2 ml-2 hover:bg-gray-700 rounded-full"><MessageSquarePlus size={20} /></button>
-                        <button onClick={() => setIsMenuOpen(false)} className="p-2 mr-2 hover:bg-gray-700 rounded-full"><X size={20} /></button>
+                        {isMenuOpen && (
+                            <button onClick={() => setIsMenuOpen(false)} className="p-2 mr-2 hover:bg-gray-700 rounded-full"><X size={20} /></button>
+                        )}
                     </div>
                     <nav className="flex-grow overflow-y-auto p-2">
                         <p className="px-4 pt-4 pb-2 text-xs text-gray-500 font-medium">Recent</p>
@@ -292,7 +294,15 @@ export default function OutfitsPage() {
                         ))}
                     </nav>
                 </aside>
-                <main className="flex-1 flex flex-col h-full">
+                {isMenuOpen && (
+                    <button 
+                        onClick={() => setIsMenuOpen(false)} 
+                        className="absolute top-4 right-4 text-gray-400 hover:text-white"
+                    >
+                        <X className="w-6 h-6" />
+                    </button>
+                )}
+                <main className={`flex-1 transition-margin duration-300 ${isMenuOpen ? 'ml-80' : 'ml-0'}`}>
                     <div className="flex-shrink-0 flex items-center h-14 px-4 border-b border-gray-800">
                         {!isMenuOpen && <button onClick={() => setIsMenuOpen(true)} className="p-2 hover:bg-gray-700 rounded-full mr-2"><Menu size={20} /></button>}
                         <h2 className="text-lg">{activeChat?.title}</h2>
