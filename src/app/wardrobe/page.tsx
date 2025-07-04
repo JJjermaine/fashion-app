@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { collection, query, where, getDocs, addDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, addDoc, doc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from '../../contexts/AuthContent';
 import { useRouter } from 'next/navigation';
@@ -24,22 +24,29 @@ interface Outfit {
 }
 
 // ~---~ Modal for Viewing an Item ~---~
-const ViewItemModal = ({ outfit, onClose }: { outfit: Outfit | null, onClose: () => void }) => {
+const ViewItemModal = ({ outfit, onClose, onDelete }: { outfit: Outfit | null, onClose: () => void, onDelete: (id: string) => void }) => {
     if (!outfit) return null;
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50" onClick={onClose}>
-            <div className="bg-gray-900 rounded-lg max-w-sm w-full shadow-2xl border border-gray-700 overflow-hidden" onClick={e => e.stopPropagation()}>
-                <img src={outfit.imageUrl} alt={outfit.itemName} className="w-full h-80 object-cover" />
+            <div className="bg-gray-900 rounded-lg max-w-3xl w-full shadow-2xl border border-gray-700 overflow-hidden max-h-screen overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-center items-center overflow-auto max-h-[70vh]">
+                    <img src={outfit.imageUrl} alt={outfit.itemName} className="max-w-full max-h-[70vh] w-auto h-auto mx-auto block" />
+                </div>
                 <div className="p-6">
                     <h2 className="text-2xl font-bold text-white mb-4">{outfit.itemName}</h2>
                     <div className="text-gray-300 space-y-2">
                         <p><strong>Date:</strong> {outfit.uploadDate}</p>
                         <p><strong>Location:</strong> {outfit.location || 'N/A'}</p>
                     </div>
-                    <button onClick={onClose} className="mt-6 w-full bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors">
-                        Close
-                    </button>
+                    <div className="flex gap-2 mt-6">
+                        <button onClick={onClose} className="w-full bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors">
+                            Close
+                        </button>
+                        <button onClick={() => outfit.id && onDelete(outfit.id)} className="w-full bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors">
+                            Delete
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -53,6 +60,7 @@ const AddItemModal = ({ isOpen, onClose, initialDate, user, fetchOutfits }: { is
     const [selectedDate, setSelectedDate] = useState<Date | null>(initialDate);
     const [location, setLocation] = useState('');
     const [file, setFile] = useState<File | null>(null);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -62,8 +70,18 @@ const AddItemModal = ({ isOpen, onClose, initialDate, user, fetchOutfits }: { is
         setTitle('');
         setLocation('');
         setFile(null);
+        setPreviewUrl(null);
     }, [initialDate]);
 
+    useEffect(() => {
+        if (file) {
+            const url = URL.createObjectURL(file);
+            setPreviewUrl(url);
+            return () => URL.revokeObjectURL(url);
+        } else {
+            setPreviewUrl(null);
+        }
+    }, [file]);
 
     if (!isOpen || !initialDate) return null;
 
@@ -137,11 +155,14 @@ const AddItemModal = ({ isOpen, onClose, initialDate, user, fetchOutfits }: { is
                         <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Input Event Location..." className="w-full bg-gray-800 text-white py-2 px-3 rounded-lg" />
                     </div>
                      <div className="mb-6">
+                     {previewUrl && (
+                            <img src={previewUrl} alt="Preview" className="mx-auto mb-4 max-h-40 rounded-lg border border-gray-700 object-contain" />
+                        )}
                         <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full bg-purple-600 text-white font-semibold py-3 px-4 rounded-xl hover:bg-purple-700 transition-all duration-300">
                             Upload Image
                         </button>
                         <input type="file" ref={fileInputRef} onChange={(e) => setFile(e.target.files?.[0] || null)} className="hidden" accept="image/*" />
-                         {file && <p className="text-center text-gray-400 mt-2 text-sm">Selected: {file.name}</p>}
+                        {file && <p className="text-center text-gray-400 mt-2 text-sm">Selected: {file.name}</p>}
                     </div>
                     <button type="submit" className="w-full bg-blue-600 text-white font-semibold py-3 px-4 rounded-xl hover:bg-blue-700 transition-all duration-300">
                         Submit
@@ -254,6 +275,16 @@ const WardrobePage = () => {
         return days;
     }, [currentDate, outfitsByDate]);
 
+    const handleDelete = async (id: string) => {
+        try {
+            await deleteDoc(doc(db, "fits", id));
+            setViewingOutfit(null);
+            fetchOutfits();
+        } catch (error) {
+            alert("Failed to delete item.");
+        }
+    };
+
     // ... (rest of the component logic: handleLogout, loading/user checks) 
     if (loading) return <div>Loading...</div>;
     if (!user) return null;
@@ -265,7 +296,7 @@ const WardrobePage = () => {
                 <div className="flex flex-col lg:flex-row h-[calc(100vh-250px)] gap-6">
                     <aside className="w-full lg:w-96 bg-gray-900/50 border border-gray-800 rounded-3xl shadow-2xl flex flex-col">
                         <div className="p-6 flex-grow flex flex-col min-h-0">
-                            <h2 className="text-xl font-bold text-white mb-6 text-center shrink-0">My Items</h2>
+                            <h2 className="text-xl font-bold text-white mb-6 text-center shrink-0">My Outfits</h2>
                             <div className="flex-grow overflow-y-auto pr-2">
                                 <div className="grid grid-cols-2 gap-6">
                                     {outfits.map((outfit) => (
@@ -306,6 +337,7 @@ const WardrobePage = () => {
             <ViewItemModal
                 outfit={viewingOutfit}
                 onClose={() => setViewingOutfit(null)}
+                onDelete={handleDelete}
             />
         </div>
     );
