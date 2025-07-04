@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -12,7 +12,13 @@ import {
     Camera,
     Zap,
     Home,
-    LayoutDashboard
+    LayoutDashboard,
+    Sun,
+    Cloud,
+    CloudRain,
+    CloudSnow,
+    CloudLightning,
+    Wind
 } from 'lucide-react';
 
 // Define the type for the user object for clarity
@@ -29,6 +35,93 @@ interface WebAppHeaderProps {
     handleLogout: () => void;
 }
 
+// --- NEW Weather Display Component ---
+const WeatherDisplay = () => {
+    const [weather, setWeather] = useState<any>(null);
+    const [error, setError] = useState<string | null>(null);
+
+    // Map weather conditions to icons
+    const weatherIcons: { [key: string]: React.ElementType } = {
+        Clear: Sun,
+        Clouds: Cloud,
+        Rain: CloudRain,
+        Drizzle: CloudRain,
+        Thunderstorm: CloudLightning,
+        Snow: CloudSnow,
+        Default: Wind,
+    };
+
+    useEffect(() => {
+        const fetchWeather = async (lat: number, lon: number) => {
+            try {
+                const response = await fetch(`/api/weather?lat=${lat}&lon=${lon}`);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to fetch weather');
+                }
+                const data = await response.json();
+                setWeather(data);
+                // Cache in session storage for 1 hour
+                sessionStorage.setItem('weather_data', JSON.stringify({ ...data, timestamp: Date.now() }));
+            } catch (err: any) {
+                setError(err.message);
+            }
+        };
+
+        const getLocation = () => {
+            // Check for cached data first
+            const cachedData = sessionStorage.getItem('weather_data');
+            if (cachedData) {
+                const { timestamp, ...data } = JSON.parse(cachedData);
+                // Use cache if less than 1 hour old
+                if (Date.now() - timestamp < 3600000) {
+                    setWeather(data);
+                    return;
+                }
+            }
+
+            // Get user's location
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        fetchWeather(position.coords.latitude, position.coords.longitude);
+                    },
+                    () => {
+                        setError('Location permission denied. Unable to fetch weather.');
+                    }
+                );
+            } else {
+                setError('Geolocation is not supported by this browser.');
+            }
+        };
+
+        getLocation();
+    }, []);
+
+    if (error) {
+        return <div className="text-xs text-red-400">{error}</div>;
+    }
+
+    if (!weather) {
+        return <div className="text-sm text-gray-400">Loading weather...</div>;
+    }
+    
+    const WeatherIcon = weatherIcons[weather.weather[0].main] || weatherIcons.Default;
+
+    return (
+        <div className="flex items-center space-x-2 bg-gray-800/50 px-3 py-1.5 rounded-lg">
+            <WeatherIcon className="w-5 h-5 text-yellow-400" />
+            <span className="font-medium text-sm text-white">
+                {Math.round(weather.main.temp)}°F
+            </span>
+            <span className="text-sm text-gray-300 hidden sm:block">
+                {weather.weather[0].description}
+            </span>
+        </div>
+    );
+};
+
+// --- Main WebAppHeader Component ---
 const WebAppHeader: React.FC<WebAppHeaderProps> = ({ user, showProfileMenu, setShowProfileMenu, handleLogout }) => {
     const pathname = usePathname();
 
@@ -46,7 +139,6 @@ const WebAppHeader: React.FC<WebAppHeaderProps> = ({ user, showProfileMenu, setS
             <header className="bg-gradient-to-r from-purple-900/50 to-pink-900/50 border-b border-gray-800">
                 <div className="container mx-auto px-6 py-6">
                     <div className="flex items-center justify-between">
-                        {/* --- Restored Simple Logo Link --- */}
                         <div className="flex items-center space-x-4">
                             <div className="flex items-center space-x-2">
                                 <Sparkles className="w-8 h-8 text-purple-400" />
@@ -65,20 +157,14 @@ const WebAppHeader: React.FC<WebAppHeaderProps> = ({ user, showProfileMenu, setS
                         
                         {/* Header Actions */}
                         <div className="flex items-center space-x-4">
-                            <div className="relative hidden md:block">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                <input
-                                    type="text"
-                                    placeholder="Search..."
-                                    className="bg-gray-800 border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition-colors duration-200 w-64"
-                                />
-                            </div>
-                            
+                            {/* --- ADDED WEATHER DISPLAY --- */}
+                            <WeatherDisplay />
+
                             <button className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors duration-200">
                                 <Bell className="w-5 h-5 text-gray-400" />
                             </button>
                             
-                            {/* --- Updated Profile Menu --- */}
+                            {/* Profile Menu */}
                             <div className="relative">
                                 <button
                                     onClick={() => setShowProfileMenu(!showProfileMenu)}
@@ -91,12 +177,10 @@ const WebAppHeader: React.FC<WebAppHeaderProps> = ({ user, showProfileMenu, setS
                                 
                                 {showProfileMenu && (
                                     <div className="absolute right-0 mt-2 w-60 bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl z-50 overflow-hidden">
-                                        {/* User Info Header */}
                                         <div className="p-4 border-b border-gray-700">
                                             <p className="font-semibold text-white truncate">{user.displayName || 'Anonymous User'}</p>
                                             <p className="text-sm text-gray-400 truncate">{user.email}</p>
                                         </div>
-                                        {/* Navigation Links */}
                                         <div className="p-2 space-y-1">
                                             <Link href="/" onClick={closeMenu} className="w-full flex items-center space-x-3 text-gray-300 hover:text-white hover:bg-gray-700 rounded-xl px-3 py-2 transition-colors duration-200">
                                                 <Home className="w-4 h-4" />
@@ -111,7 +195,6 @@ const WebAppHeader: React.FC<WebAppHeaderProps> = ({ user, showProfileMenu, setS
                                                 <span>Profile</span>
                                             </Link>
                                         </div>
-                                        {/* Logout Button */}
                                         <div className="p-2 border-t border-gray-700">
                                             <button onClick={handleLogout} className="w-full flex items-center space-x-3 text-gray-300 hover:text-red-400 hover:bg-gray-700 rounded-xl px-3 py-2 transition-colors duration-200">
                                                 <LogOut className="w-4 h-4" />
