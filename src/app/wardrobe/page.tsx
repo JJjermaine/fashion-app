@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { collection, query, where, getDocs, addDoc, doc, deleteDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, addDoc, doc, deleteDoc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from '../../contexts/AuthContent';
 import { useRouter } from 'next/navigation';
@@ -17,6 +17,7 @@ interface Outfit {
     email: string;
     itemName: string;
     cloudinaryUrl: string;
+    cloudinaryPublicId?: string;
     imageUrl: string;
     uploadDate?: string;
     location?: string;
@@ -114,6 +115,7 @@ const AddItemModal = ({ isOpen, onClose, initialDate, user, fetchOutfits }: { is
                     itemName: title,
                     location,
                     cloudinaryUrl: data.secure_url,
+                    cloudinaryPublicId: data.public_id,
                     uploadDate: selectedDate.toISOString().slice(0, 10),
                     createdAt: new Date(),
                 });
@@ -277,6 +279,28 @@ const WardrobePage = () => {
 
     const handleDelete = async (id: string) => {
         try {
+            // 1. Retrieve the Firestore document
+            const outfitDoc = await getDoc(doc(db, "fits", id));
+            if (!outfitDoc.exists()) {
+                alert("Item not found.");
+                return;
+            }
+            const data = outfitDoc.data();
+            const publicId = data.cloudinaryPublicId;
+            // 2. If publicId exists, call API to delete from Cloudinary
+            if (publicId) {
+                const res = await fetch("/api/delete-cloudinary-image", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ public_id: publicId }),
+                });
+                const result = await res.json();
+                if (!res.ok || !result.success) {
+                    alert("Failed to delete image from Cloudinary: " + (result.error || res.statusText));
+                    return;
+                }
+            }
+            // 3. Delete the Firestore document
             await deleteDoc(doc(db, "fits", id));
             setViewingOutfit(null);
             fetchOutfits();
