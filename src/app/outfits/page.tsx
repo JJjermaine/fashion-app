@@ -37,7 +37,7 @@ if (!API_KEY) {
 }
 const genAI = new GoogleGenerativeAI(API_KEY);
 const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash",
+    model: "gemini-2.5-flash-lite-preview-06-17",
     systemInstruction: `You are FitCheck AI, a visual fashion stylist.
     Your entire response MUST be a single, valid JSON object and nothing else.
     Do not include the \`\`\`json markdown wrapper.
@@ -115,6 +115,7 @@ export default function OutfitsPage() {
     const { user, loading, logout } = useAuth();
     const router = useRouter();
     const chatContainerRef = useRef<HTMLDivElement>(null);
+    const initLoaded = useRef(false); // ## FIX: Add ref to track initialization
     
     // -- UI State --
     const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -163,22 +164,42 @@ export default function OutfitsPage() {
         setActiveChatId(newChatId);
     };
 
+    // ## FIX: This entire useEffect has been updated for safety ##
     useEffect(() => {
-        if (user) {
+        // Ensure this logic only runs ONCE per login
+        if (user && !initLoaded.current) {
+            initLoaded.current = true; // Set flag to true immediately
+            
+            let loadedChats: Chat[] = [];
+            let loadedActiveId: string | null = null;
+
             try {
                 const savedData = localStorage.getItem(`geminiCloneChats_${user.uid}`);
                 if (savedData) {
                     const { chats, currentChatId } = JSON.parse(savedData);
                     if (chats?.length > 0) {
-                        setAllChats(chats);
-                        setActiveChatId(currentChatId);
-                        return;
+                        loadedChats = chats;
+                        loadedActiveId = currentChatId;
                     }
                 }
-            } catch (error) { console.error("Failed to load chats:", error); }
-            handleNewChat();
+            } catch (error) { 
+                console.error("Failed to load or parse chats:", error);
+                // Clear potentially corrupted storage
+                localStorage.removeItem(`geminiCloneChats_${user.uid}`);
+            }
+
+            // If after all that, we have no chats, create the first one.
+            if (loadedChats.length === 0) {
+                const newChatId = `chat_${Date.now()}`;
+                const newChat: Chat = { id: newChatId, title: 'New Chat', messages: [initialMessage] };
+                loadedChats = [newChat];
+                loadedActiveId = newChatId;
+            }
+
+            setAllChats(loadedChats);
+            setActiveChatId(loadedActiveId);
         }
-    }, [user]);
+    }, [user]); // Dependency on user is correct
 
     useEffect(() => {
         if (user && allChats.length > 0 && activeChatId) {
@@ -260,8 +281,12 @@ export default function OutfitsPage() {
                     </div>
                     <nav className="flex-grow overflow-y-auto p-2">
                         <p className="px-4 pt-4 pb-2 text-xs text-gray-500 font-medium">Recent</p>
-                        {allChats.map(chat => (
-                            <a key={chat.id} onClick={() => setActiveChatId(chat.id)} className={`block px-4 py-2 text-sm truncate cursor-pointer rounded-full ${activeChatId === chat.id ? 'bg-gray-700/80 text-white' : 'text-gray-400 hover:bg-gray-700/50'}`}>
+                        {allChats.map((chat, index) => (
+                            <a 
+                                key={`${chat.id}-${index}`} 
+                                onClick={() => setActiveChatId(chat.id)} 
+                                className={`block px-4 py-2 text-sm truncate cursor-pointer rounded-full ${activeChatId === chat.id ? 'bg-gray-700/80 text-white' : 'text-gray-400 hover:bg-gray-700/50'}`}
+                            >
                                 {chat.title}
                             </a>
                         ))}
@@ -275,13 +300,11 @@ export default function OutfitsPage() {
 
                     <div className="flex-1 overflow-y-auto pb-4" ref={chatContainerRef}>
                         <div className="max-w-4xl mx-auto px-4 h-full">
-                            {/* ## RENDER GREETING OR CHAT ## */}
                             {activeChat && activeChat.messages.length > 1 ? (
-                                // If chat has started, render messages
                                 activeChat.messages.slice(1).map((message, index) => {
                                     const isLastMessage = index === activeChat.messages.length - 2;
                                     return (
-                                        <div key={index}>
+                                        <div key={`${activeChat.id}-msg-${index}`}> {/* FIX: More robust key */}
                                             {message.role === 'user' && (
                                                 <div className="py-6 flex gap-4 pl-12">
                                                     <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center bg-gray-600"><User size={16} /></div>
@@ -294,13 +317,13 @@ export default function OutfitsPage() {
                                                     <div className="flex-1 pt-1">
                                                         <p className="mb-4">{parsedModelResponse.comment}</p>
                                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                            {parsedModelResponse.outfits.map((outfit, i) => <OutfitCard key={i} card={outfit} />)}
+                                                            {parsedModelResponse.outfits.map((outfit, i) => <OutfitCard key={`${activeChat.id}-outfit-${i}`} card={outfit} />)} {/* FIX: More robust key */}
                                                         </div>
                                                     </div>
                                                 </div>
                                             ) : message.role === 'model' && (
                                                 <div className="py-6 flex gap-4 pr-12">
-                                                    <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center bg-gradient-to-r from-purple-500 to-pink-500"><Sparkles size={16} /></div>
+                                                     <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center bg-gradient-to-r from-purple-500 to-pink-500"><Sparkles size={16} /></div>
                                                     <div className="flex-1 pt-1">{message.content}</div>
                                                 </div>
                                             )}
@@ -308,7 +331,6 @@ export default function OutfitsPage() {
                                     );
                                 })
                             ) : (
-                                // If chat is new, render Greeting
                                 <Greeting userName={user.displayName || 'there'} onPromptClick={handlePromptClick} />
                             )}
                         </div>
