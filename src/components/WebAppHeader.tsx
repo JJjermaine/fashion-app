@@ -107,6 +107,11 @@ const WeatherDisplay = () => {
     }
     
     const WeatherIcon = weatherIcons[weather.weather[0].main] || weatherIcons.Default;
+    // Compose city/region string
+    let locationString = weather.name || '';
+    if (weather.sys && (weather.sys.state || weather.sys.country)) {
+        locationString += ', ' + (weather.sys.state || weather.sys.country);
+    }
 
     return (
         <div className="flex items-center space-x-2 bg-gray-800/50 px-3 py-1.5 rounded-lg">
@@ -117,6 +122,9 @@ const WeatherDisplay = () => {
             <span className="text-sm text-gray-300 hidden sm:block">
                 {weather.weather[0].description}
             </span>
+            {locationString && (
+                <span className="text-sm text-gray-400 ml-2">{locationString}</span>
+            )}
         </div>
     );
 };
