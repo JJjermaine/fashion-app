@@ -5,24 +5,23 @@ import { useAuth } from '../../contexts/AuthContent';
 import { useRouter } from 'next/navigation';
 import WebAppHeader from '@/components/WebAppHeader';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
-import { Send, Sparkles, User, MessageSquarePlus, Menu, X, ArrowUp, Save, ThumbsUp, Compass, Code } from 'lucide-react';
+import { Send, Sparkles, User, MessageSquarePlus, Menu, X, ArrowUp, Save, ThumbsUp, Compass, Code, ImageOff } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 // --- DEFINE TYPES ---
 interface Message {
     role: 'user' | 'model';
-    content: string; 
+    content: string;
 }
 
 interface OutfitCardData {
     title: string;
     description: string;
-    gradient: {
-        from: string;
-        to: string;
-    };
+    image: string; // The URL for the outfit image
+    link: string;  // The URL to the webpage for the outfit
 }
+
 
 interface Chat {
     id: string;
@@ -30,11 +29,18 @@ interface Chat {
     messages: Message[];
 }
 
-// --- INITIALIZE GEMINI API WITH JSON-FOCUSED PROMPT ---
+// --- INITIALIZE GEMINI API & CUSTOM SEARCH ---
 const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
+const CUSTOM_SEARCH_API_KEY = process.env.NEXT_PUBLIC_CUSTOM_SEARCH_API_KEY || "";
+const SEARCH_ENGINE_ID = process.env.NEXT_PUBLIC_SEARCH_ENGINE_ID || "";
+
 if (!API_KEY) {
     console.warn("Gemini API key not found. Please set NEXT_PUBLIC_GEMINI_API_KEY in your .env.local file.");
 }
+if (!CUSTOM_SEARCH_API_KEY || !SEARCH_ENGINE_ID) {
+    console.warn("Google Custom Search API Key or Search Engine ID is missing. Please set them in your .env.local file for image search to work.");
+}
+
 const genAI = new GoogleGenerativeAI(API_KEY);
 const model = genAI.getGenerativeModel({
     model: "gemini-2.5-flash-lite-preview-06-17",
@@ -47,12 +53,11 @@ const model = genAI.getGenerativeModel({
       "outfits": [
         {
           "title": "Outfit Title",
-          "description": "A short, engaging description for the card.",
-          "gradient": { "from": "#a855f7", "to": "#ec4899" }
+          "description": "A short, engaging description for the card. This description will be used to search for a relevant image, so make it descriptive."
         }
       ]
     }
-    Generate 2-3 outfit objects in the array. Ensure the hex codes in the gradient are vibrant and different for each card.`,
+    Generate 2-3 outfit objects in the array.`,
     safetySettings: [
         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -64,27 +69,65 @@ const initialMessage: Message = {
     content: "Hello! How can I help you today?",
 };
 
+// --- WEB SEARCH FUNCTION ---
+const searchForOutfitImage = async (query: string): Promise<{ link: string; image: string } | null> => {
+    if (!CUSTOM_SEARCH_API_KEY || !SEARCH_ENGINE_ID) {
+        console.error("Google Custom Search credentials are not configured.");
+        return null;
+    }
+    const url = `https://www.googleapis.com/customsearch/v1?key=${CUSTOM_SEARCH_API_KEY}&cx=${SEARCH_ENGINE_ID}&q=${encodeURIComponent(query)}&searchType=image&num=1&safe=active`;
+
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            console.error(`Google Search API error: ${response.statusText}`);
+            return null;
+        }
+        const data = await response.json();
+        if (data.items && data.items.length > 0) {
+            const firstResult = data.items[0];
+            return {
+                link: firstResult.image.contextLink,
+                image: firstResult.link,
+            };
+        }
+        return null;
+    } catch (error) {
+        console.error("Failed to fetch from Google Custom Search API:", error);
+        return null;
+    }
+};
+
+
 // --- OUTFIT CARD COMPONENT ---
 const OutfitCard = ({ card }: { card: OutfitCardData }) => {
     return (
-        <div className="bg-gray-800/60 border border-gray-700 rounded-xl overflow-hidden group flex flex-col">
-            <div
-                className="h-40 w-full"
-                style={{ background: `linear-gradient(to bottom right, ${card.gradient.from}, ${card.gradient.to})` }}
-            />
+        <a href={card.link} target="_blank" rel="noopener noreferrer" className="bg-gray-800/60 border border-gray-700 rounded-xl overflow-hidden group flex flex-col hover:border-purple-500 transition-all duration-300">
+            <div className="h-48 w-full overflow-hidden bg-gray-700 flex items-center justify-center">
+                {card.image ? (
+                    <img
+                        src={card.image}
+                        alt={card.title}
+                        className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} // Hide on error
+                    />
+                ) : (
+                    <div className="text-gray-500"><ImageOff size={40} /></div>
+                )}
+            </div>
             <div className="p-4 flex flex-col flex-grow">
                 <h4 className="font-semibold text-white">{card.title}</h4>
                 <p className="text-sm text-gray-300 mt-1 flex-grow">{card.description}</p>
                 <div className="flex items-center justify-end gap-2 mt-3">
-                    <button className="p-2 rounded-full bg-gray-700 hover:bg-purple-500 transition-colors"><Save className="w-4 h-4 text-gray-300 group-hover:text-white"/></button>
-                    <button className="p-2 rounded-full bg-gray-700 hover:bg-purple-500 transition-colors"><ThumbsUp className="w-4 h-4 text-gray-300 group-hover:text-white"/></button>
+                    <button onClick={(e) => { e.preventDefault(); alert('Save feature coming soon!'); }} className="p-2 rounded-full bg-gray-700 hover:bg-purple-500 transition-colors"><Save className="w-4 h-4 text-gray-300 group-hover:text-white"/></button>
+                    <button onClick={(e) => { e.preventDefault(); alert('Like feature coming soon!'); }} className="p-2 rounded-full bg-gray-700 hover:bg-purple-500 transition-colors"><ThumbsUp className="w-4 h-4 text-gray-300 group-hover:text-white"/></button>
                 </div>
             </div>
-        </div>
+        </a>
     );
 };
 
-// --- GREETING COMPONENT FOR EMPTY CHATS (RESTORED) ---
+// --- GREETING COMPONENT ---
 const Greeting = ({ userName, onPromptClick }: { userName: string, onPromptClick: (prompt: string) => void }) => {
     const examplePrompts = [
         { icon: <Compass size={24} />, text: "Suggest a casual outfit for a sunny day in the park" },
@@ -110,12 +153,11 @@ const Greeting = ({ userName, onPromptClick }: { userName: string, onPromptClick
     );
 };
 
-
 export default function OutfitsPage() {
     const { user, loading, logout } = useAuth();
     const router = useRouter();
     const chatContainerRef = useRef<HTMLDivElement>(null);
-    const initLoaded = useRef(false); // ## FIX: Add ref to track initialization
+    const initLoaded = useRef(false);
     
     // -- UI State --
     const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -137,6 +179,7 @@ export default function OutfitsPage() {
             if (lastMessage && lastMessage.role === 'model') {
                 try {
                     const parsed = JSON.parse(lastMessage.content);
+                    // Now we expect outfits with image and link
                     if (parsed.outfits) setParsedModelResponse(parsed);
                     else setParsedModelResponse(null);
                 } catch (e) {
@@ -158,17 +201,15 @@ export default function OutfitsPage() {
             setActiveChatId(firstChat.id);
             return;
         }
-        const newChatId = `chat_${Date.now()}`;
+        const newChatId = `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const newChat: Chat = { id: newChatId, title: 'New Chat', messages: [initialMessage] };
         setAllChats(prev => [newChat, ...prev]);
         setActiveChatId(newChatId);
     };
 
-    // ## FIX: This entire useEffect has been updated for safety ##
     useEffect(() => {
-        // Ensure this logic only runs ONCE per login
         if (user && !initLoaded.current) {
-            initLoaded.current = true; // Set flag to true immediately
+            initLoaded.current = true;
             
             let loadedChats: Chat[] = [];
             let loadedActiveId: string | null = null;
@@ -178,19 +219,21 @@ export default function OutfitsPage() {
                 if (savedData) {
                     const { chats, currentChatId } = JSON.parse(savedData);
                     if (chats?.length > 0) {
-                        loadedChats = chats;
+                        // Ensure unique chat IDs by filtering duplicates
+                        const uniqueChats = chats.filter((chat: Chat, index: number, self: Chat[]) => 
+                            index === self.findIndex(c => c.id === chat.id)
+                        );
+                        loadedChats = uniqueChats;
                         loadedActiveId = currentChatId;
                     }
                 }
             } catch (error) { 
                 console.error("Failed to load or parse chats:", error);
-                // Clear potentially corrupted storage
                 localStorage.removeItem(`geminiCloneChats_${user.uid}`);
             }
 
-            // If after all that, we have no chats, create the first one.
             if (loadedChats.length === 0) {
-                const newChatId = `chat_${Date.now()}`;
+                const newChatId = `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
                 const newChat: Chat = { id: newChatId, title: 'New Chat', messages: [initialMessage] };
                 loadedChats = [newChat];
                 loadedActiveId = newChatId;
@@ -199,7 +242,7 @@ export default function OutfitsPage() {
             setAllChats(loadedChats);
             setActiveChatId(loadedActiveId);
         }
-    }, [user]); // Dependency on user is correct
+    }, [user]);
 
     useEffect(() => {
         if (user && allChats.length > 0 && activeChatId) {
@@ -222,12 +265,13 @@ export default function OutfitsPage() {
     
     const sendMessage = async (messageText: string) => {
         if (!messageText.trim() || isGenerating || !activeChatId) return;
-
+    
         const userMessage: Message = { role: 'user', content: messageText };
         setIsGenerating(true);
         setUserInput('');
         setParsedModelResponse(null);
-
+    
+        // Update chat history immediately with user message
         setAllChats(prevChats => {
             const isNewChat = prevChats.find(c => c.id === activeChatId)?.messages.length === 1;
             const updatedChats = prevChats.map(chat =>
@@ -236,19 +280,48 @@ export default function OutfitsPage() {
                     : chat
             );
             const activeChatIndex = updatedChats.findIndex(c => c.id === activeChatId);
+            if (activeChatIndex === -1) return updatedChats;
             const activeChatItem = updatedChats.splice(activeChatIndex, 1)[0];
             return [activeChatItem, ...updatedChats];
         });
-
+    
         const historyForAPI = activeChat?.messages.slice(1).map(msg => ({ role: msg.role, parts: [{ text: msg.content }] })) || [];
         const chatSession = model.startChat({ history: historyForAPI });
-
+    
         try {
+            // Get outfit ideas from Gemini
             const result = await chatSession.sendMessage(messageText);
             const text = result.response.text();
-            const aiMessage: Message = { role: 'model', content: text };
+            let parsedResponse;
+            try {
+                parsedResponse = JSON.parse(text);
+            } catch (e) {
+                console.error("Invalid JSON from AI:", text);
+                throw new Error("Invalid JSON response from AI");
+            }
+    
+            // If we have outfits, search for images for each one
+            if (parsedResponse.outfits && Array.isArray(parsedResponse.outfits)) {
+                const outfitsWithImages = await Promise.all(
+                    parsedResponse.outfits.map(async (outfit: Omit<OutfitCardData, 'image' | 'link'>) => {
+                        const searchResult = await searchForOutfitImage(outfit.description);
+                        return {
+                            ...outfit,
+                            // Use search result or a placeholder if search fails
+                            image: searchResult?.image || "", 
+                            link: searchResult?.link || '#',
+                        };
+                    })
+                );
+                parsedResponse.outfits = outfitsWithImages;
+            }
+    
+            // Final AI message with images included
+            const aiMessage: Message = { role: 'model', content: JSON.stringify(parsedResponse) };
             setAllChats(prev => prev.map(c => c.id === activeChatId ? { ...c, messages: [...c.messages, aiMessage] } : c));
+    
         } catch (error) {
+            console.error("Error during message generation or image search:", error);
             const errorMessage: Message = { role: 'model', content: "{\"comment\": \"Sorry, I ran into an error. Please try again.\", \"outfits\": []}" };
             setAllChats(prev => prev.map(c => c.id === activeChatId ? { ...c, messages: [...c.messages, errorMessage] } : c));
         } finally {
@@ -263,6 +336,8 @@ export default function OutfitsPage() {
 
     const handlePromptClick = (prompt: string) => {
         setUserInput(prompt);
+        // Automatically send the message
+        sendMessage(prompt);
     };
 
     if (loading) {
@@ -270,11 +345,13 @@ export default function OutfitsPage() {
     }
     if (!user) return null;
 
+    // --- RENDER JSX ---
     return (
         <div className="h-screen w-screen bg-gray-950 text-gray-200 flex flex-col">
             <WebAppHeader user={user} showProfileMenu={showProfileMenu} setShowProfileMenu={setShowProfileMenu} handleLogout={handleLogout} />
             <div className="flex flex-1 overflow-hidden">
-                <aside className={`fixed top-15 left-0 z-50 w-80 h-[calc(100vh-3.5rem)] bg-gray-900 border-r border-gray-700 transform transition-transform duration-300 ease-in-out ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                {/* Sidebar */}
+                <aside className={`fixed top-15 left-0 z-40 w-80 h-[calc(100vh-3.5rem)] bg-gray-900 border-r border-gray-700 transform transition-transform duration-300 ease-in-out ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                     <div className="p-2 flex justify-between items-center h-14 border-b border-gray-700/50">
                         <button onClick={handleNewChat} className="p-2 ml-2 hover:bg-gray-700 rounded-full"><MessageSquarePlus size={20} /></button>
                         {isMenuOpen && (
@@ -283,9 +360,9 @@ export default function OutfitsPage() {
                     </div>
                     <nav className="flex-grow overflow-y-auto p-2">
                         <p className="px-4 pt-4 pb-2 text-xs text-gray-500 font-medium">Recent</p>
-                        {allChats.map((chat, index) => (
+                        {allChats.map((chat) => (
                             <a 
-                                key={`${chat.id}-${index}`} 
+                                key={chat.id} 
                                 onClick={() => setActiveChatId(chat.id)} 
                                 className={`block px-4 py-2 text-sm truncate cursor-pointer rounded-full ${activeChatId === chat.id ? 'bg-gray-700/80 text-white' : 'text-gray-400 hover:bg-gray-700/50'}`}
                             >
@@ -294,15 +371,9 @@ export default function OutfitsPage() {
                         ))}
                     </nav>
                 </aside>
-                {isMenuOpen && (
-                    <button 
-                        onClick={() => setIsMenuOpen(false)} 
-                        className="absolute top-4 right-4 text-gray-400 hover:text-white"
-                    >
-                        <X className="w-6 h-6" />
-                    </button>
-                )}
-                <main className={`flex-1 transition-margin duration-300 ${isMenuOpen ? 'ml-80' : 'ml-0'}`}>
+                
+                {/* Main Content */}
+                <main className={`flex-1 flex flex-col transition-all duration-300 ${isMenuOpen ? 'ml-80' : 'ml-0'}`}>
                     <div className="flex-shrink-0 flex items-center h-14 px-4 border-b border-gray-800">
                         {!isMenuOpen && <button onClick={() => setIsMenuOpen(true)} className="p-2 hover:bg-gray-700 rounded-full mr-2"><Menu size={20} /></button>}
                         <h2 className="text-lg">{activeChat?.title}</h2>
@@ -314,7 +385,7 @@ export default function OutfitsPage() {
                                 activeChat.messages.slice(1).map((message, index) => {
                                     const isLastMessage = index === activeChat.messages.length - 2;
                                     return (
-                                        <div key={`${activeChat.id}-msg-${index}`}> {/* FIX: More robust key */}
+                                        <div key={`${activeChat.id}-msg-${index}`}>
                                             {message.role === 'user' && (
                                                 <div className="py-6 flex gap-4 pl-12">
                                                     <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center bg-gray-600"><User size={16} /></div>
@@ -326,15 +397,20 @@ export default function OutfitsPage() {
                                                     <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center bg-gradient-to-r from-purple-500 to-pink-500"><Sparkles size={16} /></div>
                                                     <div className="flex-1 pt-1">
                                                         <p className="mb-4">{parsedModelResponse.comment}</p>
-                                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                            {parsedModelResponse.outfits.map((outfit, i) => <OutfitCard key={`${activeChat.id}-outfit-${i}`} card={outfit} />)} {/* FIX: More robust key */}
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                            {parsedModelResponse.outfits.map((outfit, i) => <OutfitCard key={`${activeChat.id}-outfit-${i}`} card={outfit} />)}
                                                         </div>
                                                     </div>
                                                 </div>
                                             ) : message.role === 'model' && (
+                                                // Fallback for non-JSON or older messages
                                                 <div className="py-6 flex gap-4 pr-12">
                                                      <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center bg-gradient-to-r from-purple-500 to-pink-500"><Sparkles size={16} /></div>
-                                                    <div className="flex-1 pt-1">{message.content}</div>
+                                                     <div className="flex-1 pt-1 prose prose-invert prose-sm max-w-none">
+                                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                            {message.content}
+                                                        </ReactMarkdown>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
@@ -343,17 +419,19 @@ export default function OutfitsPage() {
                             ) : (
                                 <Greeting userName={user.displayName || 'there'} onPromptClick={handlePromptClick} />
                             )}
+                             {isGenerating && <div className="text-center py-4 text-sm text-gray-400">AI is thinking...</div>}
                         </div>
-                         {isGenerating && <div className="text-center py-4 text-sm text-gray-400">AI is thinking...</div>}
                     </div>
-                     <div className="flex-shrink-0 px-4 pb-4">
+                    
+                    {/* Input Form */}
+                    <div className="flex-shrink-0 px-4 pb-4">
                         <div className="max-w-4xl mx-auto">
                             <form onSubmit={handleFormSubmit} className="bg-gray-800 rounded-2xl flex items-center p-2 shadow-lg">
                                 <input type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)} placeholder="Message FitCheck AI..." className="flex-grow bg-transparent px-4 py-3 text-white placeholder-gray-400 focus:outline-none" disabled={isGenerating} />
                                 <button type="submit" className="bg-gray-700 hover:bg-gray-600 text-white font-semibold p-3 rounded-full transition-colors disabled:bg-gray-600/50 disabled:cursor-not-allowed" disabled={isGenerating || !userInput.trim()}><ArrowUp className="w-5 h-5"/></button>
                             </form>
                         </div>
-                     </div>
+                    </div>
                 </main>
             </div>
         </div>
