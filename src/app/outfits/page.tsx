@@ -53,11 +53,10 @@ const model = genAI.getGenerativeModel({
       "outfits": [
         {
           "title": "Outfit Title",
-          "description": "A short, engaging description for the card. This description will be used to search for a relevant image, so make it descriptive."
         }
       ]
     }
-    Generate 2-3 outfit objects in the array.`,
+    Generate 1-2 outfit objects in the array.`,
     safetySettings: [
         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -303,10 +302,12 @@ export default function OutfitsPage() {
             // If we have outfits, search for images for each one
             if (parsedResponse.outfits && Array.isArray(parsedResponse.outfits)) {
                 const outfitsWithImages = await Promise.all(
-                    parsedResponse.outfits.map(async (outfit: Omit<OutfitCardData, 'image' | 'link'>) => {
-                        const searchResult = await searchForOutfitImage(outfit.description);
+                    parsedResponse.outfits.map(async (outfit: Omit<OutfitCardData, 'image' | 'link'> & { searchQuery: string }) => {
+                        // USE THE NEW searchQuery FIELD FOR THE API CALL
+                        const searchResult = await searchForOutfitImage(outfit.searchQuery); 
                         return {
-                            ...outfit,
+                            title: outfit.title,
+                            description: outfit.description,
                             // Use search result or a placeholder if search fails
                             image: searchResult?.image || "", 
                             link: searchResult?.link || '#',
