@@ -22,7 +22,6 @@ interface OutfitCardData {
     link: string;  // The URL to the webpage for the outfit
 }
 
-
 interface Chat {
     id: string;
     title: string;
@@ -44,19 +43,21 @@ if (!CUSTOM_SEARCH_API_KEY || !SEARCH_ENGINE_ID) {
 const genAI = new GoogleGenerativeAI(API_KEY);
 const model = genAI.getGenerativeModel({
     model: "gemini-2.5-flash-lite-preview-06-17",
-    systemInstruction: `You are FitCheck AI, a visual fashion stylist.
-    Your entire response MUST be a single, valid JSON object and nothing else.
-    Do not include the \`\`\`json markdown wrapper.
-    The JSON object must follow this exact structure:
+    systemInstruction: `You are FitCheck AI, a visual fashion stylist. You will be given a prompt from a user looking for fashion advice. Your entire response MUST be a single, valid JSON object and nothing else. Do not include the \`\`\`json markdown wrapper.
+
+When the user asks for a specific brand (e.g., "Nike", "Adidas"), you MUST include that brand in the 'title' and 'searchQuery'.
+
+The JSON object must follow this exact structure:
+{
+  "comment": "A brief, one-sentence conversational comment to display above the cards.",
+  "outfits": [
     {
-      "comment": "A brief, one-sentence conversational comment to display above the cards.",
-      "outfits": [
-        {
-          "title": "Outfit Title",
-        }
-      ]
+      "title": "A short, catchy title for the outfit card.",
+      "searchQuery": "A highly specific and detailed query for Google Image Search to find a product photo. ALWAYS include brand (if provided by user), gender, color, and item type. For example: 'Nike men's grey Dri-FIT training shorts'."
     }
-    Generate 1-2 outfit objects in the array.`,
+  ]
+}
+Generate 2-3 outfit objects in the array.`,
     safetySettings: [
         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -108,7 +109,7 @@ const OutfitCard = ({ card }: { card: OutfitCardData }) => {
                         src={card.image}
                         alt={card.title}
                         className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} // Hide on error
+                        onError={(e) => { (e.target as HTMLImageElement).parentElement?.classList.add('hidden'); }}
                     />
                 ) : (
                     <div className="text-gray-500"><ImageOff size={40} /></div>
@@ -125,6 +126,38 @@ const OutfitCard = ({ card }: { card: OutfitCardData }) => {
         </a>
     );
 };
+
+// --- RENDER COMPONENT FOR EACH MODEL MESSAGE ---
+const ModelMessage = ({ message }: { message: Message }) => {
+    try {
+        const parsed = JSON.parse(message.content);
+        // Check if the parsed content is a valid outfit object
+        if (parsed.outfits && Array.isArray(parsed.outfits)) {
+            return (
+                <div className="flex-1 pt-1">
+                    <p className="mb-4">{parsed.comment}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {parsed.outfits.map((outfit: OutfitCardData, i: number) => (
+                            <OutfitCard key={i} card={outfit} />
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+    } catch (e) {
+        // Not a JSON object, or not the right structure. Fallback to plain text.
+    }
+
+    // Fallback for simple text messages like "Hello!"
+    return (
+        <div className="flex-1 pt-1 prose prose-invert prose-sm max-w-none">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {message.content}
+            </ReactMarkdown>
+        </div>
+    );
+};
+
 
 // --- GREETING COMPONENT ---
 const Greeting = ({ userName, onPromptClick }: { userName: string, onPromptClick: (prompt: string) => void }) => {
@@ -169,30 +202,10 @@ export default function OutfitsPage() {
     const [activeChatId, setActiveChatId] = useState<string | null>(null);
 
     const activeChat = useMemo(() => allChats.find(c => c.id === activeChatId), [allChats, activeChatId]);
-
-    const [parsedModelResponse, setParsedModelResponse] = useState<{ comment: string, outfits: OutfitCardData[] } | null>(null);
-
-    useEffect(() => {
-        if (activeChat) {
-            const lastMessage = activeChat.messages[activeChat.messages.length - 1];
-            if (lastMessage && lastMessage.role === 'model') {
-                try {
-                    const parsed = JSON.parse(lastMessage.content);
-                    // Now we expect outfits with image and link
-                    if (parsed.outfits) setParsedModelResponse(parsed);
-                    else setParsedModelResponse(null);
-                } catch (e) {
-                    setParsedModelResponse(null);
-                }
-            } else {
-                 setParsedModelResponse(null);
-            }
-        }
-    }, [activeChat]);
     
     useEffect(() => {
         chatContainerRef.current?.scrollTo({ top: chatContainerRef.current.scrollHeight, behavior: 'smooth' });
-    }, [activeChat?.messages, parsedModelResponse]);
+    }, [activeChat?.messages]);
 
     const handleNewChat = () => {
         const firstChat = allChats[0];
@@ -200,7 +213,7 @@ export default function OutfitsPage() {
             setActiveChatId(firstChat.id);
             return;
         }
-        const newChatId = `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const newChatId = `chat_${Date.now()}`;
         const newChat: Chat = { id: newChatId, title: 'New Chat', messages: [initialMessage] };
         setAllChats(prev => [newChat, ...prev]);
         setActiveChatId(newChatId);
@@ -218,11 +231,7 @@ export default function OutfitsPage() {
                 if (savedData) {
                     const { chats, currentChatId } = JSON.parse(savedData);
                     if (chats?.length > 0) {
-                        // Ensure unique chat IDs by filtering duplicates
-                        const uniqueChats = chats.filter((chat: Chat, index: number, self: Chat[]) => 
-                            index === self.findIndex(c => c.id === chat.id)
-                        );
-                        loadedChats = uniqueChats;
+                        loadedChats = chats;
                         loadedActiveId = currentChatId;
                     }
                 }
@@ -232,7 +241,7 @@ export default function OutfitsPage() {
             }
 
             if (loadedChats.length === 0) {
-                const newChatId = `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                const newChatId = `chat_${Date.now()}`;
                 const newChat: Chat = { id: newChatId, title: 'New Chat', messages: [initialMessage] };
                 loadedChats = [newChat];
                 loadedActiveId = newChatId;
@@ -268,9 +277,7 @@ export default function OutfitsPage() {
         const userMessage: Message = { role: 'user', content: messageText };
         setIsGenerating(true);
         setUserInput('');
-        setParsedModelResponse(null);
     
-        // Update chat history immediately with user message
         setAllChats(prevChats => {
             const isNewChat = prevChats.find(c => c.id === activeChatId)?.messages.length === 1;
             const updatedChats = prevChats.map(chat =>
@@ -288,7 +295,6 @@ export default function OutfitsPage() {
         const chatSession = model.startChat({ history: historyForAPI });
     
         try {
-            // Get outfit ideas from Gemini
             const result = await chatSession.sendMessage(messageText);
             const text = result.response.text();
             let parsedResponse;
@@ -299,16 +305,13 @@ export default function OutfitsPage() {
                 throw new Error("Invalid JSON response from AI");
             }
     
-            // If we have outfits, search for images for each one
             if (parsedResponse.outfits && Array.isArray(parsedResponse.outfits)) {
                 const outfitsWithImages = await Promise.all(
                     parsedResponse.outfits.map(async (outfit: Omit<OutfitCardData, 'image' | 'link'> & { searchQuery: string }) => {
-                        // USE THE NEW searchQuery FIELD FOR THE API CALL
-                        const searchResult = await searchForOutfitImage(outfit.searchQuery); 
+                        const searchResult = await searchForOutfitImage(outfit.searchQuery);
                         return {
                             title: outfit.title,
                             description: outfit.description,
-                            // Use search result or a placeholder if search fails
                             image: searchResult?.image || "", 
                             link: searchResult?.link || '#',
                         };
@@ -317,7 +320,6 @@ export default function OutfitsPage() {
                 parsedResponse.outfits = outfitsWithImages;
             }
     
-            // Final AI message with images included
             const aiMessage: Message = { role: 'model', content: JSON.stringify(parsedResponse) };
             setAllChats(prev => prev.map(c => c.id === activeChatId ? { ...c, messages: [...c.messages, aiMessage] } : c));
     
@@ -337,7 +339,6 @@ export default function OutfitsPage() {
 
     const handlePromptClick = (prompt: string) => {
         setUserInput(prompt);
-        // Automatically send the message
         sendMessage(prompt);
     };
 
@@ -351,7 +352,6 @@ export default function OutfitsPage() {
         <div className="h-screen w-screen bg-gray-950 text-gray-200 flex flex-col">
             <WebAppHeader user={user} showProfileMenu={showProfileMenu} setShowProfileMenu={setShowProfileMenu} handleLogout={handleLogout} />
             <div className="flex flex-1 overflow-hidden">
-                {/* Sidebar */}
                 <aside className={`fixed top-15 left-0 z-40 w-80 h-[calc(100vh-3.5rem)] bg-gray-900 border-r border-gray-700 transform transition-transform duration-300 ease-in-out ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                     <div className="p-2 flex justify-between items-center h-14 border-b border-gray-700/50">
                         <button onClick={handleNewChat} className="p-2 ml-2 hover:bg-gray-700 rounded-full"><MessageSquarePlus size={20} /></button>
@@ -373,58 +373,37 @@ export default function OutfitsPage() {
                     </nav>
                 </aside>
                 
-                {/* Main Content */}
                 <main className={`flex-1 flex flex-col transition-all duration-300 ${isMenuOpen ? 'ml-80' : 'ml-0'}`}>
                     <div className="flex-shrink-0 flex items-center h-14 px-4 border-b border-gray-800">
                         {!isMenuOpen && <button onClick={() => setIsMenuOpen(true)} className="p-2 hover:bg-gray-700 rounded-full mr-2"><Menu size={20} /></button>}
-                        <h2 className="text-lg">{activeChat?.title}</h2>
                     </div>
 
                     <div className="flex-1 overflow-y-auto pb-4" ref={chatContainerRef}>
                         <div className="max-w-4xl mx-auto px-4 h-full">
                             {activeChat && activeChat.messages.length > 1 ? (
-                                activeChat.messages.slice(1).map((message, index) => {
-                                    const isLastMessage = index === activeChat.messages.length - 2;
-                                    return (
-                                        <div key={`${activeChat.id}-msg-${index}`}>
-                                            {message.role === 'user' && (
-                                                <div className="py-6 flex gap-4 pl-12">
-                                                    <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center bg-gray-600"><User size={16} /></div>
-                                                    <div className="flex-1 pt-1">{message.content}</div>
-                                                </div>
-                                            )}
-                                            {message.role === 'model' && isLastMessage && parsedModelResponse ? (
-                                                <div className="py-6 flex gap-4 pr-12">
-                                                    <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center bg-gradient-to-r from-purple-500 to-pink-500"><Sparkles size={16} /></div>
-                                                    <div className="flex-1 pt-1">
-                                                        <p className="mb-4">{parsedModelResponse.comment}</p>
-                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                            {parsedModelResponse.outfits.map((outfit, i) => <OutfitCard key={`${activeChat.id}-outfit-${i}`} card={outfit} />)}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ) : message.role === 'model' && (
-                                                // Fallback for non-JSON or older messages
-                                                <div className="py-6 flex gap-4 pr-12">
-                                                     <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center bg-gradient-to-r from-purple-500 to-pink-500"><Sparkles size={16} /></div>
-                                                     <div className="flex-1 pt-1 prose prose-invert prose-sm max-w-none">
-                                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                                            {message.content}
-                                                        </ReactMarkdown>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })
+                                activeChat.messages.slice(1).map((message, index) => (
+                                    <div key={`${activeChat.id}-msg-${index}`}>
+                                        {message.role === 'user' && (
+                                            <div className="py-6 flex gap-4 pl-12">
+                                                <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center bg-gray-600"><User size={16} /></div>
+                                                <div className="flex-1 pt-1">{message.content}</div>
+                                            </div>
+                                        )}
+                                        {message.role === 'model' && (
+                                            <div className="py-6 flex gap-4 pr-12">
+                                                <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center bg-gradient-to-r from-purple-500 to-pink-500"><Sparkles size={16} /></div>
+                                                <ModelMessage message={message} />
+                                            </div>
+                                        )}
+                                    </div>
+                                ))
                             ) : (
                                 <Greeting userName={user.displayName || 'there'} onPromptClick={handlePromptClick} />
                             )}
-                             {isGenerating && <div className="text-center py-4 text-sm text-gray-400">AI is thinking...</div>}
+                            {isGenerating && <div className="text-center py-4 text-sm text-gray-400">AI is thinking...</div>}
                         </div>
                     </div>
                     
-                    {/* Input Form */}
                     <div className="flex-shrink-0 px-4 pb-4">
                         <div className="max-w-4xl mx-auto">
                             <form onSubmit={handleFormSubmit} className="bg-gray-800 rounded-2xl flex items-center p-2 shadow-lg">
