@@ -21,6 +21,7 @@ interface Outfit {
     imageUrl: string;
     uploadDate?: string;
     location?: string;
+    brands?: { displayName: string; confidence: number }[]; // Adjusted for Vertex AI response
     createdAt?: any;
 }
 
@@ -106,8 +107,26 @@ const AddItemModal = ({ isOpen, onClose, initialDate, user, fetchOutfits }: { is
                     method: 'POST', body: formData,
                 });
                 const data = await uploadResponse.json();
-                console.log("Cloudinary upload response:", data);
                 if (!data.secure_url) throw new Error('Image upload failed.');
+
+                // **New: Call the Vertex AI brand detection API route**
+                const brandDetectionResponse = await fetch('/api/detect-brand-vertex', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ imageUrl: data.secure_url }),
+                });
+
+                let detectedBrands = [];
+                if (brandDetectionResponse.ok) {
+                    const predictions = await brandDetectionResponse.json();
+                    // Assuming the response is an array of predictions with 'displayName' and 'confidence'
+                    detectedBrands = predictions.map((p: { displayName: string; confidence: number }) => ({
+                        name: p.displayName,
+                        confidence: p.confidence,
+                    }));
+                } else {
+                    console.error("Failed to detect brands with Vertex AI");
+                }
 
                 await addDoc(collection(db, "fits"), {
                     uid: user.uid,
@@ -117,6 +136,7 @@ const AddItemModal = ({ isOpen, onClose, initialDate, user, fetchOutfits }: { is
                     cloudinaryUrl: data.secure_url,
                     cloudinaryPublicId: data.public_id,
                     uploadDate: selectedDate.toISOString().slice(0, 10),
+                    brands: detectedBrands, // Store Vertex AI results
                     createdAt: new Date(),
                 });
 

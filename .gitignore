@@ -42,3 +42,5 @@ next-env.d.ts
 
 # clerk configuration (can include secrets)
 /.clerk/
+
+fashion-app-f2861-b717f1e64bef.json

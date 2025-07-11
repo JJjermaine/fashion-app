@@ -9,9 +9,13 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@azure/cognitiveservices-computervision": "^8.2.0",
+    "@azure/ms-rest-js": "^2.7.0",
     "@clerk/nextjs": "^6.23.1",
+    "@google-cloud/aiplatform": "^4.3.0",
     "@google/generative-ai": "^0.24.1",
     "@tailwindcss/typography": "^0.5.16",
+    "azure": "^2.3.1-preview",
     "cloudinary": "^2.7.0",
     "firebase": "^11.10.0",
     "lightningcss": "^1.29.0",
