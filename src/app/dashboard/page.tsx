@@ -12,6 +12,7 @@ import {
   TrendingUp,
   Zap,
   Newspaper, // Added for the news section
+  RefreshCw, // Added for refresh button
 } from 'lucide-react';
 
 // Define a type for individual news articles
@@ -48,6 +49,7 @@ const DashboardPage = () => {
   const [fashionNews, setFashionNews] = useState<Article[]>([]);
   const [newsLoading, setNewsLoading] = useState(true);
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const isInitialMount = useRef(true);
 
   useEffect(() => {
@@ -57,57 +59,68 @@ const DashboardPage = () => {
   }, [user, loading, router]);
 
   // Fetch fashion news from the new API route with caching
-  useEffect(() => {
-    const fetchNews = async () => {
-      try {
-        // Check if we have valid cached data
-        const now = Date.now();
-        if (newsCache.data && (now - newsCache.timestamp) < newsCache.CACHE_DURATION) {
-          console.log('Using cached news data');
-          setFashionNews(newsCache.data);
-          setNewsLoading(false);
-          return;
-        }
-
-        setNewsLoading(true);
-        console.log('Fetching fresh news data');
-        
-        const response = await fetch('/api/news', {
-          // Add cache headers to prevent unnecessary requests
-          headers: {
-            'Cache-Control': 'max-age=1800', // 30 minutes
-          },
-        });
-        
-        const data = await response.json();
-        
-        if (data.articles) {
-          // Update cache
-          newsCache.data = data.articles;
-          newsCache.timestamp = now;
-          
-          setFashionNews(data.articles);
-          setLastFetchTime(new Date());
-        }
-      } catch (error) {
-        console.error('Failed to fetch fashion news:', error);
-        
-        // If we have stale cache data, use it as fallback
-        if (newsCache.data) {
-          console.log('Using stale cached data due to fetch error');
-          setFashionNews(newsCache.data);
-        }
-      } finally {
+  const fetchNews = async (forceRefresh = false) => {
+    try {
+      const now = Date.now();
+      // Check if we have valid cached data (unless forcing refresh)
+      if (!forceRefresh && newsCache.data && (now - newsCache.timestamp) < newsCache.CACHE_DURATION) {
+        console.log('Using cached news data');
+        setFashionNews(newsCache.data);
         setNewsLoading(false);
+        return;
       }
-    };
+  
+      setNewsLoading(true);
+      if (forceRefresh) {
+        setIsRefreshing(true);
+      }
+      console.log('Fetching fresh news data');
+  
+      // ✨ FIX: Add a cache-busting query parameter for force refresh
+      const url = forceRefresh ? `/api/news?t=${new Date().getTime()}` : '/api/news';
+  
+      const response = await fetch(url, {
+        // Revalidate on the server to ensure fresh data when needed
+        next: {
+          revalidate: forceRefresh ? 0 : 1800 // Revalidate every 30 mins, but immediately on force refresh
+        }
+      });
+  
+      const data = await response.json();
+  
+      if (data.articles) {
+        // Update client-side cache
+        newsCache.data = data.articles;
+        newsCache.timestamp = now;
+  
+        setFashionNews(data.articles);
+        setLastFetchTime(new Date());
+      }
+    } catch (error) {
+      console.error('Failed to fetch fashion news:', error);
+  
+      // If we have stale cache data, use it as fallback
+      if (newsCache.data) {
+        console.log('Using stale cached data due to fetch error');
+        setFashionNews(newsCache.data);
+      }
+    } finally {
+      setNewsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
 
+  useEffect(() => {
     // Only fetch on initial mount or if user changes
     if (isInitialMount.current && user) {
       fetchNews();
       isInitialMount.current = false;
     }
   }, [user]);
+
+  const handleRefresh = () => {
+    fetchNews(true); // Force refresh
+  };
 
   const handleLogout = async () => {
     try {
@@ -185,16 +198,34 @@ const DashboardPage = () => {
                     <Newspaper className="w-8 h-8 text-teal-400 mr-3" />
                     <h2 className="text-2xl font-bold text-white">Latest Fashion News</h2>
                   </div>
-                  {lastFetchTime && (
-                    <p className="text-xs text-gray-500">
-                      Last updated: {lastFetchTime.toLocaleTimeString()}
-                    </p>
-                  )}
+                  <div className="flex items-center space-x-3">
+                    {lastFetchTime && (
+                      <p className="text-xs text-gray-500">
+                        Last updated: {lastFetchTime.toLocaleTimeString()}
+                      </p>
+                    )}
+                    <button
+                      onClick={handleRefresh}
+                      disabled={isRefreshing}
+                      className={`
+                        flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300
+                        ${isRefreshing 
+                          ? 'bg-gray-700 text-gray-400 cursor-not-allowed' 
+                          : 'bg-teal-600 hover:bg-teal-700 text-white hover:scale-105'
+                        }
+                      `}
+                    >
+                      <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                      <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+                    </button>
+                  </div>
                 </div>
                 {newsLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-400 mr-3"></div>
-                    <p className="text-gray-400">Fetching the latest trends...</p>
+                    <p className="text-gray-400">
+                      {isRefreshing ? 'Refreshing news...' : 'Fetching the latest trends...'}
+                    </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
