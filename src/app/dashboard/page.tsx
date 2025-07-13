@@ -13,6 +13,7 @@ import {
   Zap,
   Newspaper, // Added for the news section
   RefreshCw, // Added for refresh button
+  ChevronDown, // Added for load more button
 } from 'lucide-react';
 
 // Define a type for individual news articles
@@ -50,6 +51,9 @@ const DashboardPage = () => {
   const [newsLoading, setNewsLoading] = useState(true);
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [displayedArticles, setDisplayedArticles] = useState(6);
+  const [hasMoreArticles, setHasMoreArticles] = useState(true);
   const isInitialMount = useRef(true);
 
   useEffect(() => {
@@ -59,18 +63,24 @@ const DashboardPage = () => {
   }, [user, loading, router]);
 
   // Fetch fashion news from the new API route with caching
-  const fetchNews = async (forceRefresh = false) => {
+  const fetchNews = async (forceRefresh = false, loadMore = false) => {
     try {
       const now = Date.now();
-      // Check if we have valid cached data (unless forcing refresh)
-      if (!forceRefresh && newsCache.data && (now - newsCache.timestamp) < newsCache.CACHE_DURATION) {
+      // Check if we have valid cached data (unless forcing refresh or loading more)
+      if (!forceRefresh && !loadMore && newsCache.data && (now - newsCache.timestamp) < newsCache.CACHE_DURATION) {
         console.log('Using cached news data');
         setFashionNews(newsCache.data);
         setNewsLoading(false);
+        setHasMoreArticles(newsCache.data.length > 6);
         return;
       }
   
-      setNewsLoading(true);
+      if (loadMore) {
+        setIsLoadingMore(true);
+      } else {
+        setNewsLoading(true);
+      }
+      
       if (forceRefresh) {
         setIsRefreshing(true);
       }
@@ -95,6 +105,12 @@ const DashboardPage = () => {
   
         setFashionNews(data.articles);
         setLastFetchTime(new Date());
+        setHasMoreArticles(data.articles.length > 6);
+        
+        // Reset displayed articles count when refreshing
+        if (!loadMore) {
+          setDisplayedArticles(6);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch fashion news:', error);
@@ -103,10 +119,12 @@ const DashboardPage = () => {
       if (newsCache.data) {
         console.log('Using stale cached data due to fetch error');
         setFashionNews(newsCache.data);
+        setHasMoreArticles(newsCache.data.length > 6);
       }
     } finally {
       setNewsLoading(false);
       setIsRefreshing(false);
+      setIsLoadingMore(false);
     }
   };
 
@@ -120,6 +138,12 @@ const DashboardPage = () => {
 
   const handleRefresh = () => {
     fetchNews(true); // Force refresh
+  };
+
+  const handleLoadMore = () => {
+    const newCount = displayedArticles + 6;
+    setDisplayedArticles(newCount);
+    setHasMoreArticles(newCount < fashionNews.length);
   };
 
   const handleLogout = async () => {
@@ -228,49 +252,80 @@ const DashboardPage = () => {
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {fashionNews.slice(0, 6).map((article, index) => (
-                      <article key={index} className="bg-gray-800/30 rounded-xl overflow-hidden border border-gray-700/50 hover:border-gray-600/50 transition-all duration-300 group">
-                        {article.urlToImage && (
-                          <div className="relative h-48 overflow-hidden">
-                            <img 
-                              src={article.urlToImage} 
-                              alt={article.title}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                              }}
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                          </div>
-                        )}
-                        <div className="p-4">
-                          <a
-                            href={article.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-white hover:text-teal-300 transition-colors duration-300 font-semibold line-clamp-2"
-                          >
-                            {article.title}
-                          </a>
-                          {article.description && (
-                            <p className="text-gray-400 text-sm mt-2 line-clamp-2">
-                              {article.description}
-                            </p>
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {fashionNews.slice(0, displayedArticles).map((article, index) => (
+                        <article key={index} className="bg-gray-800/30 rounded-xl overflow-hidden border border-gray-700/50 hover:border-gray-600/50 transition-all duration-300 group">
+                          {article.urlToImage && (
+                            <div className="relative h-48 overflow-hidden">
+                              <img 
+                                src={article.urlToImage} 
+                                alt={article.title}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                }}
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                            </div>
                           )}
-                          <div className="flex items-center justify-between mt-3">
-                            <p className="text-xs text-gray-500">{article.source.name}</p>
-                            {article.publishedAt && (
-                              <p className="text-xs text-gray-500">
-                                {new Date(article.publishedAt).toLocaleDateString()}
+                          <div className="p-4">
+                            <a
+                              href={article.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-white hover:text-teal-300 transition-colors duration-300 font-semibold line-clamp-2"
+                            >
+                              {article.title}
+                            </a>
+                            {article.description && (
+                              <p className="text-gray-400 text-sm mt-2 line-clamp-2">
+                                {article.description}
                               </p>
                             )}
+                            <div className="flex items-center justify-between mt-3">
+                              <p className="text-xs text-gray-500">{article.source.name}</p>
+                              {article.publishedAt && (
+                                <p className="text-xs text-gray-500">
+                                  {new Date(article.publishedAt).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
+                        </article>
+                      ))}
+                    </div>
+                    
+                    {/* Load More Button */}
+                    {hasMoreArticles && (
+                      <div className="flex justify-center mt-8">
+                        <button
+                          onClick={handleLoadMore}
+                          disabled={isLoadingMore}
+                          className={`
+                            flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-all duration-300
+                            ${isLoadingMore 
+                              ? 'bg-gray-700 text-gray-400 cursor-not-allowed' 
+                              : 'bg-teal-600 hover:bg-teal-700 text-white hover:scale-105'
+                            }
+                          `}
+                        >
+                          <ChevronDown className={`w-4 h-4 ${isLoadingMore ? 'animate-bounce' : ''}`} />
+                          <span>{isLoadingMore ? 'Loading...' : 'Load More Articles'}</span>
+                        </button>
+                      </div>
+                    )}
+                    
+                    {/* Show total articles count */}
+                    {fashionNews.length > 0 && (
+                      <div className="text-center mt-4">
+                        <p className="text-sm text-gray-500">
+                          Showing {Math.min(displayedArticles, fashionNews.length)} of {fashionNews.length} articles
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>

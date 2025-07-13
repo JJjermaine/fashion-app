@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Roboflow API configuration
-    const apiKey = "krHZR1HXlAwnoqAJW1pM";
+    const apiKey = process.env.ROBOFLOW_API;
     const modelId = "vision1-tffll/1";
     const apiUrl = "https://serverless.roboflow.com";
 
