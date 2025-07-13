@@ -7,10 +7,11 @@ import { useAuth } from '../../contexts/AuthContent';
 import { useRouter } from 'next/navigation';
 import WebAppHeader from '@/components/WebAppHeader';
 import DatePicker from "react-datepicker"; // Import DatePicker
+import { ChevronDown, ChevronUp, Tag, Info } from 'lucide-react'; // Added icons
 
 import "react-datepicker/dist/react-datepicker.css"; // Import styles
 
-// Define the Outfit type
+// Define the Outfit type with clothing detection metadata
 interface Outfit {
     id: string;
     uid: string;
@@ -22,12 +23,31 @@ interface Outfit {
     uploadDate?: string;
     location?: string;
     brands?: { displayName: string; confidence: number }[]; // Adjusted for Vertex AI response
+    clothingDetection?: {
+        clothing: Array<{
+            class: string;
+            confidence: number;
+            type: string;
+        }>;
+        brands: Array<{
+            name: string;
+            confidence: number;
+            type: string;
+        }>;
+    };
     createdAt?: any;
 }
 
 // ~---~ Modal for Viewing an Item ~---~
 const ViewItemModal = ({ outfit, onClose, onDelete }: { outfit: Outfit | null, onClose: () => void, onDelete: (id: string) => void }) => {
+    const [showMetadata, setShowMetadata] = useState(false);
+    
     if (!outfit) return null;
+
+    const hasMetadata = outfit.clothingDetection && (
+        outfit.clothingDetection.clothing.length > 0 || 
+        outfit.clothingDetection.brands.length > 0
+    );
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50" onClick={onClose}>
@@ -41,6 +61,67 @@ const ViewItemModal = ({ outfit, onClose, onDelete }: { outfit: Outfit | null, o
                         <p><strong>Date:</strong> {outfit.uploadDate}</p>
                         <p><strong>Location:</strong> {outfit.location || 'N/A'}</p>
                     </div>
+                    
+                    {/* Metadata Section */}
+                    {hasMetadata && (
+                        <div className="mt-6 border-t border-gray-700 pt-4">
+                            <button
+                                onClick={() => setShowMetadata(!showMetadata)}
+                                className="flex items-center space-x-2 text-purple-400 hover:text-purple-300 transition-colors"
+                            >
+                                <Info className="w-4 h-4" />
+                                <span className="font-medium">AI Detection Results</span>
+                                {showMetadata ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            </button>
+                            
+                            {showMetadata && (
+                                <div className="mt-4 space-y-4 bg-gray-800/50 rounded-lg p-4">
+                                    {/* Clothing Types */}
+                                    {outfit.clothingDetection?.clothing && outfit.clothingDetection.clothing.length > 0 && (
+                                        <div>
+                                            <h4 className="text-sm font-semibold text-gray-300 mb-2 flex items-center">
+                                                <Tag className="w-4 h-4 mr-2" />
+                                                Clothing Types:
+                                            </h4>
+                                            <div className="flex flex-wrap gap-2">
+                                                {outfit.clothingDetection.clothing.map((item, index) => (
+                                                    <span
+                                                        key={index}
+                                                        className="px-2 py-1 bg-purple-600/20 text-purple-300 text-xs rounded-full border border-purple-500/30"
+                                                    >
+                                                        {item.class} ({(item.confidence * 100).toFixed(1)}%)
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    
+                                    {/* Brands */}
+                                    {outfit.clothingDetection?.brands && outfit.clothingDetection.brands.length > 0 ? (
+                                        <div>
+                                            <h4 className="text-sm font-semibold text-gray-300 mb-2">Brands Detected:</h4>
+                                            <div className="flex flex-wrap gap-2">
+                                                {outfit.clothingDetection.brands.map((brand, index) => (
+                                                    <span
+                                                        key={index}
+                                                        className="px-2 py-1 bg-blue-600/20 text-blue-300 text-xs rounded-full border border-blue-500/30"
+                                                    >
+                                                        {brand.name} ({(brand.confidence * 100).toFixed(1)}%)
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <h4 className="text-sm font-semibold text-gray-300 mb-2">Brands Detected:</h4>
+                                            <span className="text-gray-500 text-sm">None</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    
                     <div className="flex gap-2 mt-6">
                         <button onClick={onClose} className="w-full bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors">
                             Close
@@ -63,6 +144,7 @@ const AddItemModal = ({ isOpen, onClose, initialDate, user, fetchOutfits }: { is
     const [location, setLocation] = useState('');
     const [file, setFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -91,6 +173,8 @@ const AddItemModal = ({ isOpen, onClose, initialDate, user, fetchOutfits }: { is
         event.preventDefault();
         if (file && title && user && selectedDate) {
             try {
+                setIsUploading(true);
+                
                 // Get signature from server for Cloudinary
                 const signResponse = await fetch('/api/sign-cloudinary-params', {
                     method: 'POST',
@@ -109,23 +193,45 @@ const AddItemModal = ({ isOpen, onClose, initialDate, user, fetchOutfits }: { is
                 const data = await uploadResponse.json();
                 if (!data.secure_url) throw new Error('Image upload failed.');
 
-                // **New: Call the Vertex AI brand detection API route**
-                const brandDetectionResponse = await fetch('/api/detect-brand-vertex', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ imageUrl: data.secure_url }),
-                });
+                // **New: Call the Roboflow clothing detection API**
+                let clothingDetection = null;
+                try {
+                    const clothingDetectionResponse = await fetch('/api/detect-clothing', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ imageUrl: data.secure_url }),
+                    });
 
+                    if (clothingDetectionResponse.ok) {
+                        clothingDetection = await clothingDetectionResponse.json();
+                        console.log('Clothing detection results:', clothingDetection);
+                    } else {
+                        console.error("Failed to detect clothing items");
+                    }
+                } catch (error) {
+                    console.error("Error with clothing detection:", error);
+                }
+
+                // **Legacy: Call the Vertex AI brand detection API route (keeping for compatibility)**
                 let detectedBrands = [];
-                if (brandDetectionResponse.ok) {
-                    const predictions = await brandDetectionResponse.json();
-                    // Assuming the response is an array of predictions with 'displayName' and 'confidence'
-                    detectedBrands = predictions.map((p: { displayName: string; confidence: number }) => ({
-                        name: p.displayName,
-                        confidence: p.confidence,
-                    }));
-                } else {
-                    console.error("Failed to detect brands with Vertex AI");
+                try {
+                    const brandDetectionResponse = await fetch('/api/detect-brand-vertex', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ imageUrl: data.secure_url }),
+                    });
+
+                    if (brandDetectionResponse.ok) {
+                        const predictions = await brandDetectionResponse.json();
+                        detectedBrands = predictions.map((p: { displayName: string; confidence: number }) => ({
+                            name: p.displayName,
+                            confidence: p.confidence,
+                        }));
+                    } else {
+                        console.error("Failed to detect brands with Vertex AI");
+                    }
+                } catch (error) {
+                    console.error("Error with brand detection:", error);
                 }
 
                 await addDoc(collection(db, "fits"), {
@@ -136,7 +242,8 @@ const AddItemModal = ({ isOpen, onClose, initialDate, user, fetchOutfits }: { is
                     cloudinaryUrl: data.secure_url,
                     cloudinaryPublicId: data.public_id,
                     uploadDate: selectedDate.toISOString().slice(0, 10),
-                    brands: detectedBrands, // Store Vertex AI results
+                    brands: detectedBrands, // Store legacy brand results
+                    clothingDetection: clothingDetection, // Store new clothing detection results
                     createdAt: new Date(),
                 });
 
@@ -144,6 +251,8 @@ const AddItemModal = ({ isOpen, onClose, initialDate, user, fetchOutfits }: { is
                 onClose();
             } catch (error) {
                 console.error("Error uploading new item: ", error);
+            } finally {
+                setIsUploading(false);
             }
         } else {
             alert("Please provide a title and select a file.");
@@ -186,8 +295,16 @@ const AddItemModal = ({ isOpen, onClose, initialDate, user, fetchOutfits }: { is
                         <input type="file" ref={fileInputRef} onChange={(e) => setFile(e.target.files?.[0] || null)} className="hidden" accept="image/*" />
                         {file && <p className="text-center text-gray-400 mt-2 text-sm">Selected: {file.name}</p>}
                     </div>
-                    <button type="submit" className="w-full bg-blue-600 text-white font-semibold py-3 px-4 rounded-xl hover:bg-blue-700 transition-all duration-300">
-                        Submit
+                    <button 
+                        type="submit" 
+                        disabled={isUploading}
+                        className={`w-full font-semibold py-3 px-4 rounded-xl transition-all duration-300 ${
+                            isUploading 
+                                ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+                                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                        }`}
+                    >
+                        {isUploading ? 'Processing...' : 'Submit'}
                     </button>
                 </form>
             </div>
