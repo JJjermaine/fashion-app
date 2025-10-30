@@ -17,7 +17,7 @@ Styling: [CSS / Tailwind / Material-UI / Styled Components]
 State Management: [Redux / Context API / Zustand]
 
 📦 Installation
-bash# Clone the repository
+bash# Clone the repositorys
 git clone https://github.com/yourusername/fashion-app.git
 
 # Navigate to project directory
